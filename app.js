@@ -225,576 +225,7 @@ const DATA = {
       example_en: "I go to school.",
       example_ta: "நான் பள்ளிக்கு போவேன்.",
     },
-  ],
-
-  // Sentences (starter; expand later)
-  sentences: [
-    { id: "s1", en: "Hello!", ta_meaning: "வணக்கம்!", ta_sound: "ஹலோ!" },
-    { id: "s2", en: "How are you?", ta_meaning: "நீங்கள் எப்படி இருக்கிறீர்கள்?", ta_sound: "ஹவ் ஆர் யூ?" },
-    { id: "s3", en: "I am fine.", ta_meaning: "நான் நன்றாக இருக்கிறேன்.", ta_sound: "ஐ ஆம் ஃபைன்." },
-    { id: "s4", en: "Thank you.", ta_meaning: "நன்றி.", ta_sound: "தேங்க் யூ." },
-    { id: "s5", en: "I like milk.", ta_meaning: "எனக்கு பால் பிடிக்கும்.", ta_sound: "ஐ லைக் மில்க்." },
-  ],
-};
-
-/* ---------- SETTINGS + PROGRESS ---------- */
-const SETTINGS_KEY = "tutu_settings_v1";
-const PROGRESS_KEY = "tutu_progress_v1";
-
-const settings = loadLS(SETTINGS_KEY, {
-  showMeaning: true,
-  showSound: true,
-  bigFont: false,
-  theme: "dark",
-});
-
-const progress = loadLS(PROGRESS_KEY, {
-  doneWords: {},
-  doneSent: {},
-  lastPage: "home",
-  lastWordIndex: 0,
-  lastSentIndex: 0,
-});
-
-/* ---------- UI NAV ---------- */
-const pages = ["home", "letters", "words", "sentences", "rules", "practice", "quiz", "progress", "settings"];
-
-function showPage(name) {
-  pages.forEach((p) => {
-    const el = $("page-" + p);
-    if (el) el.classList.remove("active");
-  });
-  const target = $("page-" + name);
-  if (target) target.classList.add("active");
-
-  document.querySelectorAll(".navBtn").forEach((b) => {
-    b.classList.toggle("active", b.dataset.nav === name);
-  });
-
-  progress.lastPage = name;
-  saveLS(PROGRESS_KEY, progress);
-}
-
-/* ---------- THEME + SETTINGS APPLY ---------- */
-function applySettings() {
-  document.body.classList.toggle("light", settings.theme === "light");
-  document.body.classList.toggle("bigFont", !!settings.bigFont);
-
-  $("setMeaning").checked = !!settings.showMeaning;
-  $("setSound").checked = !!settings.showSound;
-  $("setBigFont").checked = !!settings.bigFont;
-}
-
-/* ---------- LETTERS RENDER ---------- */
-let lettersFilter = "All";
-
-function renderLettersChips() {
-  const chips = ["All", "Uyir (Vowels)", "Mei (Consonants)", "UyirMei (216 Letters)", "Grantha (Extra)"];
-  const wrap = $("lettersChips");
-  wrap.innerHTML = "";
-  chips.forEach((c) => {
-    const btn = document.createElement("button");
-    btn.className = "chip" + (lettersFilter === c ? " active" : "");
-    btn.textContent = c === "All" ? "All" : c.split(" ")[0];
-    btn.onclick = () => {
-      lettersFilter = c;
-      renderLettersChips();
-      renderLettersList();
-    };
-    wrap.appendChild(btn);
-  });
-}
-
-function renderLettersList() {
-  const q = $("lettersSearch").value.trim().toLowerCase();
-  const list = $("lettersList");
-  list.innerHTML = "";
-
-  let items = DATA.tamilLetters;
-
-  if (lettersFilter !== "All") {
-    items = items.filter((x) => x.group === lettersFilter);
-  }
-
-  if (q) {
-    items = items.filter((x) => (x.ta + " " + x.enSound + " " + x.taSound + " " + x.group).toLowerCase().includes(q));
-  }
-
-  items.slice(0, 400).forEach((x) => {
-    const card = document.createElement("div");
-    card.className = "item";
-    card.innerHTML = `
-      <div class="rowBetween">
-        <div>
-          <div class="bigText">${x.ta}</div>
-          <div class="smallText">${x.group}</div>
-        </div>
-        <div class="badge">${x.enSound}</div>
-      </div>
-      <div class="kv">
-        <div class="kvLine"><span class="kvKey">Tamil sound</span><span class="kvVal">${x.taSound}</span></div>
-      </div>
-    `;
-    list.appendChild(card);
-  });
-}
-
-/* ---------- WORDS RENDER (Pagination) ---------- */
-const WORDS_PAGE_SIZE = 20;
-let wordsPage = 0;
-
-function getWordsFiltered() {
-  const q = $("wordsSearch").value.trim().toLowerCase();
-  let items = DATA.words;
-
-  if (q) {
-    items = items.filter((w) => {
-      const blob = `${w.en} ${w.ta_meaning} ${w.ta_sound} ${w.rule} ${w.example_en} ${w.example_ta}`.toLowerCase();
-      return blob.includes(q);
-    });
-  }
-  return items;
-}
-
-function renderWords() {
-  const list = $("wordsList");
-  list.innerHTML = "";
-
-  const items = getWordsFiltered();
-  const start = wordsPage * WORDS_PAGE_SIZE;
-  const pageItems = items.slice(start, start + WORDS_PAGE_SIZE);
-
-  $("wordsPagerText").textContent = `Page ${wordsPage + 1} / ${Math.max(1, Math.ceil(items.length / WORDS_PAGE_SIZE))}`;
-
-  pageItems.forEach((w, idx) => {
-    const card = document.createElement("div");
-    card.className = "item";
-
-    const done = !!progress.doneWords[w.id];
-
-    const meaningHTML = settings.showMeaning ? `<div class="kvLine"><span class="kvKey">Meaning</span><span class="kvVal">${w.ta_meaning}</span></div>` : "";
-    const soundHTML = settings.showSound ? `<div class="kvLine"><span class="kvKey">Tamil sound</span><span class="kvVal">${w.ta_sound}</span></div>` : "";
-
-    const breakdownHTML = (w.breakdown && w.breakdown.length)
-      ? `<div class="breakdown">
-          ${w.breakdown.map(b => `<span class="pill">${b.part} → ${b.ta}</span>`).join("")}
-        </div>`
-      : "";
-
-    card.innerHTML = `
-      <div class="rowBetween">
-        <div>
-          <div class="bigText">${w.en}</div>
-          <div class="smallText">${done ? "✅ Completed" : "⬜ Not done"}</div>
-        </div>
-        <div class="badge">${w.rule || "Rule"}</div>
-      </div>
-
-      <div class="kv">
-        ${meaningHTML}
-        ${soundHTML}
-        <div class="kvLine"><span class="kvKey">Example</span><span class="kvVal">${w.example_en}</span></div>
-        <div class="kvLine"><span class="kvKey">Tamil</span><span class="kvVal">${w.example_ta}</span></div>
-        ${breakdownHTML}
-      </div>
-
-      <div class="actions">
-        <button class="actionBtn" data-act="listen">🔊 Listen</button>
-        <button class="actionBtn" data-act="done">${done ? "Undo" : "Mark Done"}</button>
-        <button class="actionBtn" data-act="quiz">🧪 Quiz</button>
-      </div>
-    `;
-
-    card.querySelector('[data-act="listen"]').onclick = () => speak(w.en, "en-US");
-    card.querySelector('[data-act="done"]').onclick = () => {
-      progress.doneWords[w.id] = !progress.doneWords[w.id];
-      saveLS(PROGRESS_KEY, progress);
-      renderProgress();
-      renderWords();
-    };
-    card.querySelector('[data-act="quiz"]').onclick = () => {
-      startQuiz("word", w);
-    };
-
-    list.appendChild(card);
-  });
-}
-
-/* ---------- SENTENCES RENDER (Pagination) ---------- */
-const SENT_PAGE_SIZE = 15;
-let sentPage = 0;
-
-function getSentFiltered() {
-  const q = $("sentSearch").value.trim().toLowerCase();
-  let items = DATA.sentences;
-  if (q) {
-    items = items.filter((s) => {
-      const blob = `${s.en} ${s.ta_meaning} ${s.ta_sound}`.toLowerCase();
-      return blob.includes(q);
-    });
-  }
-  return items;
-}
-
-function renderSentences() {
-  const list = $("sentList");
-  list.innerHTML = "";
-
-  const items = getSentFiltered();
-  const start = sentPage * SENT_PAGE_SIZE;
-  const pageItems = items.slice(start, start + SENT_PAGE_SIZE);
-
-  $("sentPagerText").textContent = `Page ${sentPage + 1} / ${Math.max(1, Math.ceil(items.length / SENT_PAGE_SIZE))}`;
-
-  pageItems.forEach((s) => {
-    const card = document.createElement("div");
-    card.className = "item";
-    const done = !!progress.doneSent[s.id];
-
-    const meaningHTML = settings.showMeaning ? `<div class="kvLine"><span class="kvKey">Meaning</span><span class="kvVal">${s.ta_meaning}</span></div>` : "";
-    const soundHTML = settings.showSound ? `<div class="kvLine"><span class="kvKey">Tamil sound</span><span class="kvVal">${s.ta_sound}</span></div>` : "";
-
-    card.innerHTML = `
-      <div class="rowBetween">
-        <div>
-          <div class="midText">${s.en}</div>
-          <div class="smallText">${done ? "✅ Completed" : "⬜ Not done"}</div>
-        </div>
-        <div class="badge">Sentence</div>
-      </div>
-
-      <div class="kv">
-        ${meaningHTML}
-        ${soundHTML}
-      </div>
-
-      <div class="actions">
-        <button class="actionBtn" data-act="listen">🔊 Listen</button>
-        <button class="actionBtn" data-act="done">${done ? "Undo" : "Mark Done"}</button>
-        <button class="actionBtn" data-act="quiz">🧪 Quiz</button>
-      </div>
-    `;
-
-    card.querySelector('[data-act="listen"]').onclick = () => speak(s.en, "en-US");
-    card.querySelector('[data-act="done"]').onclick = () => {
-      progress.doneSent[s.id] = !progress.doneSent[s.id];
-      saveLS(PROGRESS_KEY, progress);
-      renderProgress();
-      renderSentences();
-    };
-    card.querySelector('[data-act="quiz"]').onclick = () => {
-      startQuiz("sentence", s);
-    };
-
-    list.appendChild(card);
-  });
-}
-
-/* ---------- RULES RENDER ---------- */
-function renderRules() {
-  const list = $("rulesList");
-  list.innerHTML = "";
-
-  DATA.rules.forEach((r) => {
-    const card = document.createElement("div");
-    card.className = "item";
-    card.innerHTML = `
-      <div class="rowBetween">
-        <div>
-          <div class="midText">${r.title}</div>
-          <div class="smallText">Tamil teacher style rules</div>
-        </div>
-        <div class="badge">Rule</div>
-      </div>
-      <div class="kv">
-        ${r.points.map(p => `<div class="kvLine"><span class="kvKey">•</span><span class="kvVal">${p}</span></div>`).join("")}
-      </div>
-    `;
-    list.appendChild(card);
-  });
-}
-
-/* ---------- PRACTICE (Speaking) ---------- */
-let practiceIndex = 0;
-
-function renderPractice() {
-  const s = DATA.sentences[practiceIndex % DATA.sentences.length] || DATA.sentences[0];
-  $("practiceEn").textContent = s.en;
-  $("practiceTa").textContent = settings.showMeaning ? s.ta_meaning : "";
-  $("practiceSound").textContent = settings.showSound ? s.ta_sound : "";
-  $("micText").textContent = "Mic result will show here...";
-}
-
-function startSpeechRecognition() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    $("micText").textContent = "❌ உங்கள் browser-ல் Mic support இல்லை. நீங்க சத்தமாக வாசித்து practice பண்ணுங்க 👍";
-    return;
-  }
-  const rec = new SpeechRecognition();
-  rec.lang = "en-US";
-  rec.interimResults = false;
-  rec.maxAlternatives = 1;
-
-  $("micText").textContent = "🎧 Listening... பேசுங்க...";
-  rec.start();
-
-  rec.onresult = (e) => {
-    const text = e.results[0][0].transcript;
-    $("micText").textContent = "✅ You said: " + text;
-  };
-  rec.onerror = () => {
-    $("micText").textContent = "❌ Mic error. மீண்டும் முயற்சி செய்யுங்க.";
-  };
-}
-
-/* ---------- QUIZ SYSTEM ---------- */
-let quizState = {
-  type: "word",
-  item: null,
-  qIndex: 0,
-  score: 0,
-  total: 5,
-  currentCorrect: null,
-};
-
-function randInt(n) {
-  return Math.floor(Math.random() * n);
-}
-
-function pickRandom(arr, count) {
-  const copy = [...arr];
-  const out = [];
-  while (copy.length && out.length < count) {
-    out.push(copy.splice(randInt(copy.length), 1)[0]);
-  }
-  return out;
-}
-
-function startQuiz(type, item) {
-  quizState = { type, item, qIndex: 0, score: 0, total: 5, currentCorrect: null };
-  showPage("quiz");
-  renderQuizQuestion();
-}
-
-function renderQuizQuestion() {
-  const box = $("quizBox");
-  box.innerHTML = "";
-
-  const isWord = quizState.type === "word";
-  const item = quizState.item;
-
-  // Question types:
-  // 1) Meaning MCQ
-  // 2) Sound MCQ
-  // 3) Rule MCQ (word only)
-  const qType = isWord ? ["meaning", "sound", "rule"][quizState.qIndex % 3] : ["meaning", "sound"][quizState.qIndex % 2];
-
-  let question = "";
-  let options = [];
-  let correct = "";
-
-  if (qType === "meaning") {
-    question = `Q${quizState.qIndex + 1}: "${item.en}" meaning என்ன?`;
-    correct = item.ta_meaning;
-    const pool = (isWord ? DATA.words : DATA.sentences).map(x => x.ta_meaning);
-    options = pickRandom(pool.filter(x => x !== correct), 3);
-    options.push(correct);
-  }
-
-  if (qType === "sound") {
-    question = `Q${quizState.qIndex + 1}: "${item.en}" Tamil sound என்ன?`;
-    correct = item.ta_sound;
-    const pool = (isWord ? DATA.words : DATA.sentences).map(x => x.ta_sound);
-    options = pickRandom(pool.filter(x => x !== correct), 3);
-    options.push(correct);
-  }
-
-  if (qType === "rule") {
-    question = `Q${quizState.qIndex + 1}: "${item.en}" rule என்ன?`;
-    correct = item.rule || "Rule";
-    const pool = DATA.words.map(x => x.rule || "Rule");
-    options = pickRandom(pool.filter(x => x !== correct), 3);
-    options.push(correct);
-  }
-
-  options = options.sort(() => Math.random() - 0.5);
-  quizState.currentCorrect = correct;
-
-  box.innerHTML = `
-    <div class="quizQ">${question}</div>
-    <div class="quizOptions" id="quizOptions"></div>
-  `;
-
-  const optWrap = $("quizOptions");
-  options.forEach((opt) => {
-    const btn = document.createElement("button");
-    btn.className = "optBtn";
-    btn.textContent = opt;
-    btn.onclick = () => {
-      if (opt === quizState.currentCorrect) {
-        btn.classList.add("correct");
-        quizState.score += 1;
-      } else {
-        btn.classList.add("wrong");
-      }
-      // disable all
-      optWrap.querySelectorAll("button").forEach(b => b.disabled = true);
-      $("quizScore").textContent = `Score: ${quizState.score} / ${quizState.total}`;
-    };
-    optWrap.appendChild(btn);
-  });
-
-  $("quizScore").textContent = `Score: ${quizState.score} / ${quizState.total}`;
-}
-
-/* ---------- PROGRESS ---------- */
-function renderProgress() {
-  const doneW = Object.values(progress.doneWords).filter(Boolean).length;
-  const doneS = Object.values(progress.doneSent).filter(Boolean).length;
-
-  $("progWords").textContent = doneW;
-  $("progSent").textContent = doneS;
-
-  $("statWords").textContent = DATA.words.length;
-  $("statSentences").textContent = DATA.sentences.length;
-  $("statLetters").textContent = DATA.tamilLetters.length;
-}
-
-/* ---------- EVENTS ---------- */
-function initEvents() {
-  // bottom nav
-  document.querySelectorAll(".navBtn").forEach((btn) => {
-    btn.addEventListener("click", () => showPage(btn.dataset.nav));
-  });
-
-  // home cards
-  document.querySelectorAll("[data-nav]").forEach((btn) => {
-    btn.addEventListener("click", () => showPage(btn.dataset.nav));
-  });
-
-  $("btnStart").onclick = () => showPage("letters");
-  $("btnContinue").onclick = () => showPage(progress.lastPage || "home");
-
-  // theme
-  $("btnTheme").onclick = () => {
-    settings.theme = settings.theme === "dark" ? "light" : "dark";
-    saveLS(SETTINGS_KEY, settings);
-    applySettings();
-  };
-
-  // letters search
-  $("lettersSearch").addEventListener("input", renderLettersList);
-
-  // words search + pager
-  $("wordsSearch").addEventListener("input", () => {
-    wordsPage = 0;
-    renderWords();
-  });
-  $("btnWordsPrev").onclick = () => {
-    wordsPage = Math.max(0, wordsPage - 1);
-    renderWords();
-  };
-  $("btnWordsNext").onclick = () => {
-    const total = getWordsFiltered().length;
-    const maxPage = Math.max(0, Math.ceil(total / WORDS_PAGE_SIZE) - 1);
-    wordsPage = Math.min(maxPage, wordsPage + 1);
-    renderWords();
-  };
-
-  // sentences search + pager
-  $("sentSearch").addEventListener("input", () => {
-    sentPage = 0;
-    renderSentences();
-  });
-  $("btnSentPrev").onclick = () => {
-    sentPage = Math.max(0, sentPage - 1);
-    renderSentences();
-  };
-  $("btnSentNext").onclick = () => {
-    const total = getSentFiltered().length;
-    const maxPage = Math.max(0, Math.ceil(total / SENT_PAGE_SIZE) - 1);
-    sentPage = Math.min(maxPage, sentPage + 1);
-    renderSentences();
-  };
-
-  // practice
-  $("btnSpeakEnglish").onclick = () => speak($("practiceEn").textContent, "en-US");
-  $("btnNextPractice").onclick = () => {
-    practiceIndex += 1;
-    renderPractice();
-  };
-  $("btnMic").onclick = () => startSpeechRecognition();
-
-  // quiz buttons
-  $("btnQuizNext").onclick = () => {
-    quizState.qIndex += 1;
-    if (quizState.qIndex >= quizState.total) {
-      $("quizBox").innerHTML = `<div class="quizQ">🎉 Quiz Finished!</div><div class="smallText">Final Score: ${quizState.score} / ${quizState.total}</div>`;
-      return;
-    }
-    renderQuizQuestion();
-  };
-  $("btnQuizRestart").onclick = () => {
-    quizState.qIndex = 0;
-    quizState.score = 0;
-    renderQuizQuestion();
-  };
-
-  // settings toggles
-  $("setMeaning").onchange = (e) => {
-    settings.showMeaning = e.target.checked;
-    saveLS(SETTINGS_KEY, settings);
-    renderWords();
-    renderSentences();
-    renderPractice();
-  };
-  $("setSound").onchange = (e) => {
-    settings.showSound = e.target.checked;
-    saveLS(SETTINGS_KEY, settings);
-    renderWords();
-    renderSentences();
-    renderPractice();
-  };
-  $("setBigFont").onchange = (e) => {
-    settings.bigFont = e.target.checked;
-    saveLS(SETTINGS_KEY, settings);
-    applySettings();
-  };
-
-  // reset progress
-  $("btnReset").onclick = () => {
-    if (!confirm("Reset progress?")) return;
-    progress.doneWords = {};
-    progress.doneSent = {};
-    saveLS(PROGRESS_KEY, progress);
-    renderProgress();
-    renderWords();
-    renderSentences();
-  };
-}
-
-/* ---------- INIT ---------- */
-function init() {
-  applySettings();
-
-  renderProgress();
-  renderLettersChips();
-  renderLettersList();
-
-  renderRules();
-  renderWords();
-  renderSentences();
-  renderPractice();
-
-  initEvents();
-
-  // restore last page
-  showPage(progress.lastPage || "home");
-}
-
-init();
-// ===== Fluent Pack 1 (Words 5–104) =====
+   // ===== Fluent Pack 1 (Words 5–104) =====
 {
   id:"w5",
   en:"Cat",
@@ -1581,67 +1012,7 @@ init();
   example_en:"Listen to me.",
   example_ta:"என்னை கேள்."
 },
-// ===== Fluent Pack 1 (Sentences 6–55) =====
-{ id:"s6", en:"What is your name?", ta_meaning:"உங்கள் பெயர் என்ன?", ta_sound:"வாட் இஸ் யோர் நேம்?" },
-{ id:"s7", en:"My name is Kishor.", ta_meaning:"என் பெயர் கிஷோர்.", ta_sound:"மை நேம் இஸ் கிஷோர்." },
-{ id:"s8", en:"Where are you from?", ta_meaning:"நீங்கள் எங்கிருந்து வந்தீர்கள்?", ta_sound:"வேர் ஆர் யூ ஃப்ரம்?" },
-{ id:"s9", en:"I am from Tamil Nadu.", ta_meaning:"நான் தமிழ்நாட்டில் இருந்து வந்தேன்.", ta_sound:"ஐ ஆம் ஃப்ரம் தமிழ்நாடு." },
-{ id:"s10", en:"Please speak slowly.", ta_meaning:"தயவு செய்து மெதுவாக பேசுங்கள்.", ta_sound:"ப்ளீஸ் ஸ்பீக் ஸ்லோலி." },
-
-{ id:"s11", en:"I don't understand.", ta_meaning:"எனக்கு புரியவில்லை.", ta_sound:"ஐ டோன்ட் அண்டர்ஸ்டாண்ட்." },
-{ id:"s12", en:"Can you repeat?", ta_meaning:"மீண்டும் சொல்ல முடியுமா?", ta_sound:"கேன் யூ ரிபீட்?" },
-{ id:"s13", en:"I am learning English.", ta_meaning:"நான் ஆங்கிலம் கற்றுக்கொள்கிறேன்.", ta_sound:"ஐ ஆம் லெர்னிங் இங்கிலிஷ்." },
-{ id:"s14", en:"I can read now.", ta_meaning:"நான் இப்போது படிக்க முடியும்.", ta_sound:"ஐ கேன் ரீட் நவ்." },
-{ id:"s15", en:"I want to speak English.", ta_meaning:"நான் ஆங்கிலம் பேச வேண்டும்.", ta_sound:"ஐ வான்ட் டு ஸ்பீக் இங்கிலிஷ்." },
-
-{ id:"s16", en:"Open the door.", ta_meaning:"கதவை திற.", ta_sound:"ஓபன் த டோர்." },
-{ id:"s17", en:"Close the window.", ta_meaning:"ஜன்னலை மூடு.", ta_sound:"க்ளோஸ் த விண்டோ." },
-{ id:"s18", en:"Switch on the light.", ta_meaning:"விளக்கை ஆன் செய்.", ta_sound:"ஸ்விட்ச் ஆன் த லைட்." },
-{ id:"s19", en:"Switch off the fan.", ta_meaning:"விசிறியை ஆஃப் செய்.", ta_sound:"ஸ்விட்ச் ஆஃப் த ஃபேன்." },
-{ id:"s20", en:"Sit on the chair.", ta_meaning:"நாற்காலியில் உட்கார்.", ta_sound:"சிட் ஆன் த சேர்." },
-
-{ id:"s21", en:"Stand up.", ta_meaning:"எழுந்து நில்.", ta_sound:"ஸ்டாண்ட் அப்." },
-{ id:"s22", en:"Sit down.", ta_meaning:"உட்கார்.", ta_sound:"சிட் டவுன்." },
-{ id:"s23", en:"Come here.", ta_meaning:"இங்கே வா.", ta_sound:"கம் ஹியர்." },
-{ id:"s24", en:"Go there.", ta_meaning:"அங்கே போ.", ta_sound:"கோ தேர்." },
-{ id:"s25", en:"Wait here.", ta_meaning:"இங்கே காத்திரு.", ta_sound:"வேய்ட் ஹியர்." },
-
-{ id:"s26", en:"Drink water.", ta_meaning:"தண்ணீர் குடி.", ta_sound:"ட்ரிங்க் வாட்டர்." },
-{ id:"s27", en:"I like tea.", ta_meaning:"எனக்கு தேநீர் பிடிக்கும்.", ta_sound:"ஐ லைக் டீ." },
-{ id:"s28", en:"I eat rice.", ta_meaning:"நான் சோறு சாப்பிடுவேன்.", ta_sound:"ஐ ஈட் ரைஸ்." },
-{ id:"s29", en:"Food is ready.", ta_meaning:"உணவு தயாராக உள்ளது.", ta_sound:"ஃபூட் இஸ் ரெடி." },
-{ id:"s30", en:"I am hungry.", ta_meaning:"எனக்கு பசிக்கிறது.", ta_sound:"ஐ ஆம் ஹங்க்ரி." },
-
-{ id:"s31", en:"I am happy.", ta_meaning:"நான் சந்தோஷமாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ஹாப்பி." },
-{ id:"s32", en:"I am sad.", ta_meaning:"நான் சோகமாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் சேட்." },
-{ id:"s33", en:"This is good.", ta_meaning:"இது நல்லது.", ta_sound:"திஸ் இஸ் குட்." },
-{ id:"s34", en:"This is bad.", ta_meaning:"இது கெட்டது.", ta_sound:"திஸ் இஸ் பேட்." },
-{ id:"s35", en:"It is hot.", ta_meaning:"சூடாக உள்ளது.", ta_sound:"இட் இஸ் ஹாட்." },
-
-{ id:"s36", en:"It is cold.", ta_meaning:"குளிராக உள்ளது.", ta_sound:"இட் இஸ் கோல்ட்." },
-{ id:"s37", en:"My bag is new.", ta_meaning:"என் பை புதியது.", ta_sound:"மை பேக் இஸ் நியூ." },
-{ id:"s38", en:"My phone is here.", ta_meaning:"என் போன் இங்கே உள்ளது.", ta_sound:"மை ஃபோன் இஸ் ஹியர்." },
-{ id:"s39", en:"I have a book.", ta_meaning:"என்னிடம் ஒரு புத்தகம் உள்ளது.", ta_sound:"ஐ ஹேவ் அ புக்." },
-{ id:"s40", en:"I read a book.", ta_meaning:"நான் புத்தகம் படிப்பேன்.", ta_sound:"ஐ ரீட் அ புக்." },
-
-{ id:"s41", en:"Write your name.", ta_meaning:"உன் பெயரை எழுது.", ta_sound:"ரைட் யோர் நேம்." },
-{ id:"s42", en:"Listen to me.", ta_meaning:"என்னை கேள்.", ta_sound:"லிஸன் டு மீ." },
-{ id:"s43", en:"Speak clearly.", ta_meaning:"தெளிவாக பேசு.", ta_sound:"ஸ்பீக் கிளியர்லி." },
-{ id:"s44", en:"Please help me.", ta_meaning:"தயவு செய்து உதவி செய்யுங்கள்.", ta_sound:"ப்ளீஸ் ஹெல்ப் மீ." },
-{ id:"s45", en:"Call me later.", ta_meaning:"பிறகு என்னை கால் செய்.", ta_sound:"கால் மீ லேட்டர்." },
-
-{ id:"s46", en:"I go to work.", ta_meaning:"நான் வேலைக்கு போவேன்.", ta_sound:"ஐ கோ டு வர்க்." },
-{ id:"s47", en:"I need money.", ta_meaning:"எனக்கு பணம் வேண்டும்.", ta_sound:"ஐ நீட் மணி." },
-{ id:"s48", en:"Go to the market.", ta_meaning:"சந்தைக்கு போ.", ta_sound:"கோ டு த மார்கெட்." },
-{ id:"s49", en:"This shop is big.", ta_meaning:"இந்த கடை பெரியது.", ta_sound:"திஸ் ஷாப் இஸ் பிக்." },
-{ id:"s50", en:"The road is long.", ta_meaning:"சாலை நீளமாக உள்ளது.", ta_sound:"த ரோட் இஸ் லாங்." },
-
-{ id:"s51", en:"Turn right.", ta_meaning:"வலது பக்கம் திரும்பு.", ta_sound:"டர்ன் ரைட்." },
-{ id:"s52", en:"Turn left.", ta_meaning:"இடது பக்கம் திரும்பு.", ta_sound:"டர்ன் லெஃப்ட்." },
-{ id:"s53", en:"Good night.", ta_meaning:"இனிய இரவு.", ta_sound:"குட் நைட்." },
-{ id:"s54", en:"Good morning.", ta_meaning:"காலை வணக்கம்.", ta_sound:"குட் மார்னிங்." },
-{ id:"s55", en:"See you tomorrow.", ta_meaning:"நாளை சந்திப்போம்.", ta_sound:"சி யூ டுமாரோ." },
-// ===== Fluent Pack 2 (Words 105–204) =====
+   // ===== Fluent Pack 2 (Words 105–204) =====
 {
   id:"w105",
   en:"Boy",
@@ -2374,66 +1745,6 @@ init();
   breakdown:[{part:"La",ta:"லா"},{part:"st",ta:"ஸ்ட்"}],
   rule:"st = ஸ்ட்", example_en:"This is last.", example_ta:"இது கடைசி."
 },
-// ===== Fluent Pack 2 (Sentences 56–105) =====
-{ id:"s56", en:"I am at home.", ta_meaning:"நான் வீட்டில் இருக்கிறேன்.", ta_sound:"ஐ ஆம் அட் ஹோம்." },
-{ id:"s57", en:"He is my friend.", ta_meaning:"அவன் என் நண்பன்.", ta_sound:"ஹீ இஸ் மை ஃப்ரெண்ட்." },
-{ id:"s58", en:"She is my sister.", ta_meaning:"அவள் என் அக்கா/தங்கை.", ta_sound:"ஷீ இஸ் மை சிஸ்டர்." },
-{ id:"s59", en:"My father is working.", ta_meaning:"என் அப்பா வேலை செய்கிறார்.", ta_sound:"மை ஃபாதர் இஸ் வர்க்கிங்." },
-{ id:"s60", en:"My mother is cooking.", ta_meaning:"என் அம்மா சமைக்கிறார்.", ta_sound:"மை மதர் இஸ் குக்கிங்." },
-
-{ id:"s61", en:"The child is sleeping.", ta_meaning:"குழந்தை தூங்குகிறது.", ta_sound:"த சைல்ட் இஸ் ஸ்லீப்பிங்." },
-{ id:"s62", en:"I want to learn.", ta_meaning:"நான் கற்றுக்கொள்ள வேண்டும்.", ta_sound:"ஐ வான்ட் டு லெர்ன்." },
-{ id:"s63", en:"I need more practice.", ta_meaning:"எனக்கு மேலும் பயிற்சி தேவை.", ta_sound:"ஐ நீட் மோர் ப்ராக்டிஸ்." },
-{ id:"s64", en:"This lesson is easy.", ta_meaning:"இந்த பாடம் எளிது.", ta_sound:"திஸ் லெசன் இஸ் ஈஸி." },
-{ id:"s65", en:"This lesson is hard.", ta_meaning:"இந்த பாடம் கடினம்.", ta_sound:"திஸ் லெசன் இஸ் ஹார்ட்." },
-
-{ id:"s66", en:"I understand now.", ta_meaning:"இப்போது எனக்கு புரிகிறது.", ta_sound:"ஐ அண்டர்ஸ்டாண்ட் நவ்." },
-{ id:"s67", en:"I don't know.", ta_meaning:"எனக்கு தெரியாது.", ta_sound:"ஐ டோன்ட் நோ." },
-{ id:"s68", en:"I know this word.", ta_meaning:"இந்த வார்த்தை எனக்கு தெரியும்.", ta_sound:"ஐ நோ திஸ் வார்ட்." },
-{ id:"s69", en:"Please repeat again.", ta_meaning:"தயவு செய்து மீண்டும் சொல்லுங்கள்.", ta_sound:"ப்ளீஸ் ரிபீட் அகெயின்." },
-{ id:"s70", en:"Speak clearly, please.", ta_meaning:"தெளிவாக பேசுங்கள்.", ta_sound:"ஸ்பீக் கிளியர்லி ப்ளீஸ்." },
-
-{ id:"s71", en:"Be quiet.", ta_meaning:"அமைதியாக இரு.", ta_sound:"பீ க்வயட்." },
-{ id:"s72", en:"Don't make noise.", ta_meaning:"சத்தம் செய்யாதே.", ta_sound:"டோன்ட் மேக் நாய்ஸ்." },
-{ id:"s73", en:"I am busy today.", ta_meaning:"நான் இன்று பிஸியாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் பிஸி டுடே." },
-{ id:"s74", en:"I am free now.", ta_meaning:"நான் இப்போது காலியாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ஃப்ரீ நவ்." },
-{ id:"s75", en:"Come early tomorrow.", ta_meaning:"நாளை முன்னதாக வா.", ta_sound:"கம் எர்லி டுமாரோ." },
-
-{ id:"s76", en:"Don't be late.", ta_meaning:"தாமதமாகாதே.", ta_sound:"டோன்ட் பீ லேட்." },
-{ id:"s77", en:"Are you ready?", ta_meaning:"நீ தயாரா?", ta_sound:"ஆர் யூ ரெடி?" },
-{ id:"s78", en:"I am ready now.", ta_meaning:"நான் இப்போது தயாராக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ரெடி நவ்." },
-{ id:"s79", en:"Maybe later.", ta_meaning:"பிறகு இருக்கலாம்.", ta_sound:"மேபி லேட்டர்." },
-{ id:"s80", en:"I am sure.", ta_meaning:"நிச்சயம்.", ta_sound:"ஐ ஆம் ஷூர்." },
-
-{ id:"s81", en:"Always tell the truth.", ta_meaning:"எப்போதும் உண்மை சொல்.", ta_sound:"ஆல்வேஸ் டெல் த ட்ரூத்." },
-{ id:"s82", en:"Never give up.", ta_meaning:"ஒருபோதும் கைவிடாதே.", ta_sound:"நெவர் கிவ் அப்." },
-{ id:"s83", en:"I will try again.", ta_meaning:"நான் மீண்டும் முயற்சி செய்கிறேன்.", ta_sound:"ஐ வில் ட்ரை அகெயின்." },
-{ id:"s84", en:"Finish your work.", ta_meaning:"உன் வேலையை முடி.", ta_sound:"ஃபினிஷ் யோர் வர்க்." },
-{ id:"s85", en:"Begin the lesson.", ta_meaning:"பாடத்தை தொடங்கு.", ta_sound:"பிகின் த லெசன்." },
-
-{ id:"s86", en:"Press the button.", ta_meaning:"பட்டனை அழுத்து.", ta_sound:"ப்ரெஸ் த பட்டன்." },
-{ id:"s87", en:"Click here.", ta_meaning:"இங்கே கிளிக் செய்.", ta_sound:"க்ளிக் ஹியர்." },
-{ id:"s88", en:"Open the website.", ta_meaning:"வலைத்தளத்தை திற.", ta_sound:"ஓபன் த வெப்சைட்." },
-{ id:"s89", en:"Close the website.", ta_meaning:"வலைத்தளத்தை மூடு.", ta_sound:"க்ளோஸ் த வெப்சைட்." },
-{ id:"s90", en:"Remember the password.", ta_meaning:"கடவுச்சொல்லை நினைவில் வை.", ta_sound:"ரிமெம்பர் த பாஸ்வேர்ட்." },
-
-{ id:"s91", en:"Login now.", ta_meaning:"இப்போ உள்நுழை.", ta_sound:"லாகின் நவ்." },
-{ id:"s92", en:"Logout later.", ta_meaning:"பிறகு வெளியேறு.", ta_sound:"லாக்அவுட் லேட்டர்." },
-{ id:"s93", en:"I use mobile.", ta_meaning:"நான் மொபைல் பயன்படுத்துகிறேன்.", ta_sound:"ஐ யூஸ் மொபைல்." },
-{ id:"s94", en:"Internet is fast.", ta_meaning:"இணையம் வேகமாக உள்ளது.", ta_sound:"இன்டர்நெட் இஸ் ஃபாஸ்ட்." },
-{ id:"s95", en:"My computer is slow.", ta_meaning:"என் கம்ப்யூட்டர் மெதுவாக உள்ளது.", ta_sound:"மை கம்ப்யூட்டர் இஸ் ஸ்லோ." },
-
-{ id:"s96", en:"What is the price?", ta_meaning:"விலை என்ன?", ta_sound:"வாட் இஸ் த ப்ரைஸ்?" },
-{ id:"s97", en:"This is cheap.", ta_meaning:"இது குறைந்த விலை.", ta_sound:"திஸ் இஸ் சீப்." },
-{ id:"s98", en:"This is costly.", ta_meaning:"இது அதிக விலை.", ta_sound:"திஸ் இஸ் காஸ்ட்லி." },
-{ id:"s99", en:"Buy this one.", ta_meaning:"இதையே வாங்கு.", ta_sound:"பை திஸ் வன்." },
-{ id:"s100", en:"Sell the old phone.", ta_meaning:"பழைய போனை விற்று.", ta_sound:"செல் த ஓல்ட் ஃபோன்." },
-
-{ id:"s101", en:"Pay now.", ta_meaning:"இப்போ பணம் செலுத்து.", ta_sound:"பே நவ்." },
-{ id:"s102", en:"I go to office.", ta_meaning:"நான் அலுவலகத்திற்கு போவேன்.", ta_sound:"ஐ கோ டு ஆஃபிஸ்." },
-{ id:"s103", en:"I come back soon.", ta_meaning:"நான் சீக்கிரம் திரும்பி வருவேன்.", ta_sound:"ஐ கம் பேக் சூன்." },
-{ id:"s104", en:"Answer the question.", ta_meaning:"கேள்விக்கு பதில் சொல்.", ta_sound:"ஆன்சர் த க்வெஸ்சன்." },
-{ id:"s105", en:"Your answer is correct.", ta_meaning:"உன் பதில் சரி.", ta_sound:"யோர் ஆன்சர் இஸ் கரெக்ட்." },
 // ===== Fluent Pack 3 (Words 205–304) =====
 {
   id:"w205",
@@ -3119,66 +2430,6 @@ init();
   breakdown:[{part:"Wh",ta:"வ"},{part:"ich",ta:"ிச்"}],
   rule:"ch = ச", example_en:"Which one?", example_ta:"எது?"
 },
-// ===== Fluent Pack 3 (Sentences 106–155) =====
-{ id:"s106", en:"Eat your food.", ta_meaning:"உன் உணவை சாப்பிடு.", ta_sound:"ஈட் யோர் ஃபூட்." },
-{ id:"s107", en:"Drink water now.", ta_meaning:"இப்போ தண்ணீர் குடி.", ta_sound:"ட்ரிங்க் வாட்டர் நவ்." },
-{ id:"s108", en:"Sleep early today.", ta_meaning:"இன்று முன்னதாக தூங்கு.", ta_sound:"ஸ்லீப் எர்லி டுடே." },
-{ id:"s109", en:"Wake up now.", ta_meaning:"இப்போ எழுந்திரு.", ta_sound:"வேக் அப் நவ்." },
-{ id:"s110", en:"Walk slowly.", ta_meaning:"மெதுவாக நட.", ta_sound:"வாக் ஸ்லோலி." },
-
-{ id:"s111", en:"Run fast.", ta_meaning:"வேகமாக ஓடு.", ta_sound:"ரன் ஃபாஸ்ட்." },
-{ id:"s112", en:"Jump now.", ta_meaning:"இப்போ தாவு.", ta_sound:"ஜம்ப் நவ்." },
-{ id:"s113", en:"Children play outside.", ta_meaning:"குழந்தைகள் வெளியே விளையாடுகிறார்கள்.", ta_sound:"சில்ட்ரன் ப்ளே அவுட்சைட்." },
-{ id:"s114", en:"Study everyday.", ta_meaning:"தினமும் படி.", ta_sound:"ஸ்டடி எவ்ரிடே." },
-{ id:"s115", en:"Learn English daily.", ta_meaning:"தினமும் ஆங்கிலம் கற்று.", ta_sound:"லெர்ன் இங்கிலிஷ் டெய்லி." },
-
-{ id:"s116", en:"Teach me slowly.", ta_meaning:"மெதுவாக கற்பிக்கவும்.", ta_sound:"டீச் மீ ஸ்லோலி." },
-{ id:"s117", en:"Read this word.", ta_meaning:"இந்த வார்த்தையை படி.", ta_sound:"ரீட் திஸ் வர்ட்." },
-{ id:"s118", en:"Write this sentence.", ta_meaning:"இந்த வாக்கியத்தை எழுது.", ta_sound:"ரைட் திஸ் சென்டன்ஸ்." },
-{ id:"s119", en:"Speak in English.", ta_meaning:"ஆங்கிலத்தில் பேசு.", ta_sound:"ஸ்பீக் இன் இங்கிலிஷ்." },
-{ id:"s120", en:"Listen carefully.", ta_meaning:"கவனமாக கேள்.", ta_sound:"லிஸன் கேர் ஃபுல்லி." },
-
-{ id:"s121", en:"Look at me.", ta_meaning:"என்னை பார்.", ta_sound:"லுக் அட் மீ." },
-{ id:"s122", en:"Watch TV now.", ta_meaning:"இப்போ டிவி பார்.", ta_sound:"வாட்ச் டிவி நவ்." },
-{ id:"s123", en:"Talk to me.", ta_meaning:"என்னிடம் பேசு.", ta_sound:"டாக் டு மீ." },
-{ id:"s124", en:"Say hello.", ta_meaning:"ஹலோ சொல்லு.", ta_sound:"சே ஹலோ." },
-{ id:"s125", en:"Tell me the truth.", ta_meaning:"எனக்கு உண்மை சொல்லு.", ta_sound:"டெல் மீ த ட்ரூத்." },
-
-{ id:"s126", en:"Ask a question.", ta_meaning:"ஒரு கேள்வி கேள்.", ta_sound:"ஆஸ்க் அ க்வெஸ்சன்." },
-{ id:"s127", en:"Answer me now.", ta_meaning:"இப்போ எனக்கு பதில் சொல்.", ta_sound:"ஆன்சர் மீ நவ்." },
-{ id:"s128", en:"Call me now.", ta_meaning:"இப்போ என்னை கால் செய்.", ta_sound:"கால் மீ நவ்." },
-{ id:"s129", en:"Send a message.", ta_meaning:"ஒரு மெசேஜ் அனுப்பு.", ta_sound:"செண்ட் அ மெசேஜ்." },
-{ id:"s130", en:"Reply me soon.", ta_meaning:"சீக்கிரம் பதில் அனுப்பு.", ta_sound:"ரிப்ளை மீ சூன்." },
-
-{ id:"s131", en:"Say it again.", ta_meaning:"மீண்டும் சொல்லு.", ta_sound:"சே இட் அகெயின்." },
-{ id:"s132", en:"Thank you so much.", ta_meaning:"மிகவும் நன்றி.", ta_sound:"தேங்க் யூ சோ மச்." },
-{ id:"s133", en:"Sorry, I am late.", ta_meaning:"மன்னிக்கவும், நான் தாமதம்.", ta_sound:"சாரி ஐ ஆம் லேட்." },
-{ id:"s134", en:"Welcome to my home.", ta_meaning:"என் வீட்டுக்கு வரவேற்கிறேன்.", ta_sound:"வெல்கம் டு மை ஹோம்." },
-{ id:"s135", en:"Good night, sleep well.", ta_meaning:"இனிய இரவு, நன்றாக தூங்கு.", ta_sound:"குட் நைட் ஸ்லீப் வெல்." },
-
-{ id:"s136", en:"I want to improve.", ta_meaning:"நான் மேம்படுத்த வேண்டும்.", ta_sound:"ஐ வான்ட் டு இம்ப்ரூவ்." },
-{ id:"s137", en:"Practice makes perfect.", ta_meaning:"பயிற்சி தான் முழுமை தரும்.", ta_sound:"ப்ராக்டிஸ் மேக்ஸ் பர்ஃபெக்ட்." },
-{ id:"s138", en:"Speak slowly and clearly.", ta_meaning:"மெதுவாகவும் தெளிவாகவும் பேசு.", ta_sound:"ஸ்பீக் ஸ்லோலி அண்ட் கிளியர்லி." },
-{ id:"s139", en:"English is simple.", ta_meaning:"ஆங்கிலம் எளிது.", ta_sound:"இங்கிலிஷ் இஸ் சிம்பிள்." },
-{ id:"s140", en:"Tamil helps me.", ta_meaning:"தமிழ் எனக்கு உதவுகிறது.", ta_sound:"தமிழ் ஹெல்ப்ஸ் மீ." },
-
-{ id:"s141", en:"What is this?", ta_meaning:"இது என்ன?", ta_sound:"வாட் இஸ் திஸ்?" },
-{ id:"s142", en:"Where are you?", ta_meaning:"நீ எங்கே இருக்கிறாய்?", ta_sound:"வேர் ஆர் யூ?" },
-{ id:"s143", en:"When will you come?", ta_meaning:"நீ எப்போது வருவாய்?", ta_sound:"வென் வில் யூ கம்?" },
-{ id:"s144", en:"Why are you sad?", ta_meaning:"நீ ஏன் சோகமாக இருக்கிறாய்?", ta_sound:"வை ஆர் யூ சேட்?" },
-{ id:"s145", en:"Who is he?", ta_meaning:"அவன் யார்?", ta_sound:"ஹூ இஸ் ஹீ?" },
-
-{ id:"s146", en:"Which one do you want?", ta_meaning:"எதை நீ வேண்டும்?", ta_sound:"விச் வன் டு யூ வான்ட்?" },
-{ id:"s147", en:"I want this one.", ta_meaning:"எனக்கு இதுதான் வேண்டும்.", ta_sound:"ஐ வான்ட் திஸ் வன்." },
-{ id:"s148", en:"I don't want that.", ta_meaning:"எனக்கு அது வேண்டாம்.", ta_sound:"ஐ டோன்ட் வான்ட் தாட்." },
-{ id:"s149", en:"This is my first lesson.", ta_meaning:"இது என் முதல் பாடம்.", ta_sound:"திஸ் இஸ் மை ஃபர்ஸ்ட் லெசன்." },
-{ id:"s150", en:"This is the last page.", ta_meaning:"இது கடைசி பக்கம்.", ta_sound:"திஸ் இஸ் த லாஸ்ட் பேஜ்." },
-
-{ id:"s151", en:"Next page, please.", ta_meaning:"அடுத்த பக்கம் தயவு செய்து.", ta_sound:"நெக்ஸ்ட் பேஜ் ப்ளீஸ்." },
-{ id:"s152", en:"I will learn English.", ta_meaning:"நான் ஆங்கிலம் கற்றுக்கொள்வேன்.", ta_sound:"ஐ வில் லெர்ன் இங்கிலிஷ்." },
-{ id:"s153", en:"I will speak English.", ta_meaning:"நான் ஆங்கிலம் பேசுவேன்.", ta_sound:"ஐ வில் ஸ்பீக் இங்கிலிஷ்." },
-{ id:"s154", en:"I will read English.", ta_meaning:"நான் ஆங்கிலம் படிப்பேன்.", ta_sound:"ஐ வில் ரீட் இங்கிலிஷ்." },
-{ id:"s155", en:"I will write English.", ta_meaning:"நான் ஆங்கிலம் எழுதுவேன்.", ta_sound:"ஐ வில் ரைட் இங்கிலிஷ்." },
 // ===== Fluent Pack 4 (Words 305–404) =====
 {
   id:"w305",
@@ -3866,66 +3117,6 @@ init();
   breakdown:[{part:"Peo",ta:"பீ"},{part:"ple",ta:"பிள்"}],
   rule:"ple = பிள்", example_en:"Many people.", example_ta:"பல மக்கள்."
 },
-// ===== Fluent Pack 4 (Sentences 156–205) =====
-{ id:"s156", en:"This knife is sharp.", ta_meaning:"இந்த கத்தி கூர்மையாக உள்ளது.", ta_sound:"திஸ் நைஃப் இஸ் ஷார்ப்." },
-{ id:"s157", en:"I know you.", ta_meaning:"நான் உன்னை அறிவேன்.", ta_sound:"ஐ நோ யூ." },
-{ id:"s158", en:"My knee hurts.", ta_meaning:"என் முட்டி வலிக்கிறது.", ta_sound:"மை நீ ஹர்ட்ஸ்." },
-{ id:"s159", en:"Write your name.", ta_meaning:"உன் பெயரை எழுது.", ta_sound:"ரைட் யோர் நேம்." },
-{ id:"s160", en:"This is wrong.", ta_meaning:"இது தவறு.", ta_sound:"திஸ் இஸ் ராங்." },
-
-{ id:"s161", en:"Wrap the gift.", ta_meaning:"பரிசை சுற்றி மூடு.", ta_sound:"ரேப் த கிஃப்ட்." },
-{ id:"s162", en:"Use a comb.", ta_meaning:"சீப்பு பயன்படுத்து.", ta_sound:"யூஸ் அ கோம்." },
-{ id:"s163", en:"My thumb is okay.", ta_meaning:"என் பெருவிரல் சரி.", ta_sound:"மை தம் இஸ் ஓகே." },
-{ id:"s164", en:"Climb slowly.", ta_meaning:"மெதுவாக ஏறு.", ta_sound:"க்ளைம் ஸ்லோலி." },
-{ id:"s165", en:"Turn on the light.", ta_meaning:"லைட்டை ஆன் செய்.", ta_sound:"டர்ன் ஆன் த லைட்." },
-
-{ id:"s166", en:"Good night.", ta_meaning:"இனிய இரவு.", ta_sound:"குட் நைட்." },
-{ id:"s167", en:"You are right.", ta_meaning:"நீ சரி.", ta_sound:"யூ ஆர் ரைட்." },
-{ id:"s168", en:"I have eight books.", ta_meaning:"எனக்கு எட்டு புத்தகங்கள் உள்ளன.", ta_sound:"ஐ ஹேவ் எய்ட் புக்க்ஸ்." },
-{ id:"s169", en:"Laugh loudly.", ta_meaning:"சத்தமாக சிரி.", ta_sound:"லாஃப் லவுட்லி." },
-{ id:"s170", en:"My daughter is smart.", ta_meaning:"என் மகள் புத்திசாலி.", ta_sound:"மை டாட்டர் இஸ் ஸ்மார்ட்." },
-
-{ id:"s171", en:"Good thought.", ta_meaning:"நல்ல எண்ணம்.", ta_sound:"குட் தாட்." },
-{ id:"s172", en:"My phone is new.", ta_meaning:"என் போன் புதியது.", ta_sound:"மை ஃபோன் இஸ் நியூ." },
-{ id:"s173", en:"Take a photo.", ta_meaning:"ஒரு புகைப்படம் எடு.", ta_sound:"டேக் அ ஃபோட்டோ." },
-{ id:"s174", en:"Elephant is big.", ta_meaning:"யானை பெரியது.", ta_sound:"எலிஃபண்ட் இஸ் பிக்." },
-{ id:"s175", en:"I go to school.", ta_meaning:"நான் பள்ளிக்கு போகிறேன்.", ta_sound:"ஐ கோ டு ஸ்கூல்." },
-
-{ id:"s176", en:"Sit on the chair.", ta_meaning:"நாற்காலியில் உட்கார்.", ta_sound:"சிட் ஆன் த சேர்." },
-{ id:"s177", en:"Go to the shop.", ta_meaning:"கடைக்கு போ.", ta_sound:"கோ டு த ஷாப்." },
-{ id:"s178", en:"Fish is tasty.", ta_meaning:"மீன் ருசியாக உள்ளது.", ta_sound:"ஃபிஷ் இஸ் டேஸ்டி." },
-{ id:"s179", en:"Wash the dish.", ta_meaning:"தட்டையை கழுவு.", ta_sound:"வாஷ் த டிஷ்." },
-{ id:"s180", en:"Brush your teeth.", ta_meaning:"பற்களை துலக்கு.", ta_sound:"ப்ரஷ் யோர் டீத்." },
-
-{ id:"s181", en:"Catch the ball.", ta_meaning:"பந்தை பிடி.", ta_sound:"கேச் த பால்." },
-{ id:"s182", en:"We won the match.", ta_meaning:"நாம் போட்டியில் ஜெயித்தோம்.", ta_sound:"வி வன் த மேச்." },
-{ id:"s183", en:"Think before you speak.", ta_meaning:"பேசுவதற்கு முன் யோசி.", ta_sound:"திங் பிஃபோர் யூ ஸ்பீக்." },
-{ id:"s184", en:"I have three pens.", ta_meaning:"எனக்கு மூன்று பேன்கள் உள்ளன.", ta_sound:"ஐ ஹேவ் த்ரீ பென்ஸ்." },
-{ id:"s185", en:"My mother is kind.", ta_meaning:"என் அம்மா நல்லவர்.", ta_sound:"மை மதர் இஸ் கைண்ட்." },
-
-{ id:"s186", en:"My father works.", ta_meaning:"என் அப்பா வேலை செய்கிறார்.", ta_sound:"மை ஃபாதர் வர்க்ஸ்." },
-{ id:"s187", en:"My brother is tall.", ta_meaning:"என் அண்ணன் உயரம்.", ta_sound:"மை ப்ரதர் இஸ் டால்." },
-{ id:"s188", en:"The boy is here.", ta_meaning:"அந்த பையன் இங்கே இருக்கிறான்.", ta_sound:"த பாய் இஸ் ஹியர்." },
-{ id:"s189", en:"Go there.", ta_meaning:"அங்கே போ.", ta_sound:"கோ தேர்." },
-{ id:"s190", en:"Eat, then sleep.", ta_meaning:"சாப்பிட்டு அப்புறம் தூங்கு.", ta_sound:"ஈட் தென் ஸ்லீப்." },
-
-{ id:"s191", en:"He is thin.", ta_meaning:"அவன் மெலிந்தவன்.", ta_sound:"ஹீ இஸ் தின்." },
-{ id:"s192", en:"This book is thick.", ta_meaning:"இந்த புத்தகம் தடிமன்.", ta_sound:"திஸ் புக் இஸ் திக்." },
-{ id:"s193", en:"Call on phone.", ta_meaning:"போனில் கால் செய்.", ta_sound:"கால் ஆன் ஃபோன்." },
-{ id:"s194", en:"Check it.", ta_meaning:"அதை சரிபார்.", ta_sound:"செக் இட்." },
-{ id:"s195", en:"Come back.", ta_meaning:"திரும்பி வா.", ta_sound:"கம் பேக்." },
-
-{ id:"s196", en:"Take a break.", ta_meaning:"இடைவேளை எடு.", ta_sound:"டேக் அ ப்ரேக்." },
-{ id:"s197", en:"My head hurts.", ta_meaning:"என் தலை வலிக்கிறது.", ta_sound:"மை ஹெட் ஹர்ட்ஸ்." },
-{ id:"s198", en:"I can hear you.", ta_meaning:"நான் உன்னை கேட்க முடியும்.", ta_sound:"ஐ கேன் ஹியர் யூ." },
-{ id:"s199", en:"Don't fear.", ta_meaning:"பயப்படாதே.", ta_sound:"டோன்ட் ஃபியர்." },
-{ id:"s200", en:"Sit on the seat.", ta_meaning:"இருக்கையில் உட்கார்.", ta_sound:"சிட் ஆன் த சீட்." },
-
-{ id:"s201", en:"Great job.", ta_meaning:"மிகச் சிறந்த வேலை.", ta_sound:"க்ரேட் ஜாப்." },
-{ id:"s202", en:"Weather is good.", ta_meaning:"வானிலை நல்லது.", ta_sound:"வெதர் இஸ் குட்." },
-{ id:"s203", en:"My teacher helps me.", ta_meaning:"என் ஆசிரியர் உதவுகிறார்.", ta_sound:"மை டீச்சர் ஹெல்ப்ஸ் மீ." },
-{ id:"s204", en:"Go to kitchen.", ta_meaning:"சமையலறைக்கு போ.", ta_sound:"கோ டு கிச்சன்." },
-{ id:"s205", en:"Do you need anything?", ta_meaning:"உனக்கு எதாவது வேண்டுமா?", ta_sound:"டு யூ நீட் எனிதிங்?" },
 // ===== Fluent Pack 5 (Words 405–504) =====
 {
   id:"w405",
@@ -4780,66 +3971,6 @@ init();
   breakdown:[{part:"To",ta:"டு"},{part:"mor",ta:"மா"},{part:"row",ta:"ரோ"}],
   rule:"ow = ஓ", example_en:"See you tomorrow.", example_ta:"நாளை சந்திப்போம்."
 },
-// ===== Fluent Pack 5 (Sentences 206–255) =====
-{ id:"s206", en:"I like cake.", ta_meaning:"எனக்கு கேக் பிடிக்கும்.", ta_sound:"ஐ லைக் கேக்." },
-{ id:"s207", en:"Make tea.", ta_meaning:"டீ செய்.", ta_sound:"மேக் டீ." },
-{ id:"s208", en:"My name is Ravi.", ta_meaning:"என் பெயர் ரவி.", ta_sound:"மை நேம் இஸ் ரவி." },
-{ id:"s209", en:"This game is fun.", ta_meaning:"இந்த விளையாட்டு வேடிக்கையாக உள்ளது.", ta_sound:"திஸ் கேம் இஸ் ஃபன்." },
-{ id:"s210", en:"I am late.", ta_meaning:"நான் தாமதம்.", ta_sound:"ஐ ஆம் லேட்." },
-
-{ id:"s211", en:"Open the gate.", ta_meaning:"வாசலை திற.", ta_sound:"ஓபன் த கேட்." },
-{ id:"s212", en:"What is the date?", ta_meaning:"இன்று தேதி என்ன?", ta_sound:"வாட் இஸ் த டேட்?" },
-{ id:"s213", en:"What time is it?", ta_meaning:"இப்போ நேரம் என்ன?", ta_sound:"வாட் டைம் இஸ் இட்?" },
-{ id:"s214", en:"I like you.", ta_meaning:"எனக்கு நீ பிடிக்கும்.", ta_sound:"ஐ லைக் யூ." },
-{ id:"s215", en:"My bike is new.", ta_meaning:"என் பைக் புதியது.", ta_sound:"மை பைக் இஸ் நியூ." },
-
-{ id:"s216", en:"I eat rice.", ta_meaning:"நான் அரிசி சாப்பிடுகிறேன்.", ta_sound:"ஐ ஈட் ரைஸ்." },
-{ id:"s217", en:"Nice to meet you.", ta_meaning:"உங்களை சந்தித்ததில் மகிழ்ச்சி.", ta_sound:"நைஸ் டு மீட் யூ." },
-{ id:"s218", en:"Wash your face.", ta_meaning:"முகத்தை கழுவு.", ta_sound:"வாஷ் யோர் ஃபேஸ்." },
-{ id:"s219", en:"This place is good.", ta_meaning:"இந்த இடம் நல்லது.", ta_sound:"திஸ் ப்ளேஸ் இஸ் குட்." },
-{ id:"s220", en:"Go home.", ta_meaning:"வீட்டுக்கு போ.", ta_sound:"கோ ஹோம்." },
-
-{ id:"s221", en:"I hope you win.", ta_meaning:"நீ ஜெயிப்பாய் என்று நம்புகிறேன்.", ta_sound:"ஐ ஹோப் யூ வின்." },
-{ id:"s222", en:"Write a note.", ta_meaning:"ஒரு குறிப்பு எழுது.", ta_sound:"ரைட் அ நோட்." },
-{ id:"s223", en:"This rose is red.", ta_meaning:"இந்த ரோஜா சிவப்பு.", ta_sound:"திஸ் ரோஸ் இஸ் ரெட்." },
-{ id:"s224", en:"Cute baby.", ta_meaning:"அழகான குழந்தை.", ta_sound:"க்யூட் பேபி." },
-{ id:"s225", en:"Use this.", ta_meaning:"இதை பயன்படுத்து.", ta_sound:"யூஸ் திஸ்." },
-
-{ id:"s226", en:"One apple.", ta_meaning:"ஒரு ஆப்பிள்.", ta_sound:"வன் ஆப்பிள்." },
-{ id:"s227", en:"Two pens.", ta_meaning:"இரண்டு பேன்கள்.", ta_sound:"டூ பென்ஸ்." },
-{ id:"s228", en:"Three books.", ta_meaning:"மூன்று புத்தகங்கள்.", ta_sound:"த்ரீ புக்க்ஸ்." },
-{ id:"s229", en:"This is my book.", ta_meaning:"இது என் புத்தகம்.", ta_sound:"திஸ் இஸ் மை புக்." },
-{ id:"s230", en:"Look here.", ta_meaning:"இங்கே பார்.", ta_sound:"லுக் ஹியர்." },
-
-{ id:"s231", en:"Cook rice.", ta_meaning:"அரிசி சமை.", ta_sound:"குக் ரைஸ்." },
-{ id:"s232", en:"Food is ready.", ta_meaning:"உணவு தயாராக உள்ளது.", ta_sound:"ஃபூட் இஸ் ரெடி." },
-{ id:"s233", en:"The moon is bright.", ta_meaning:"நிலா பிரகாசமாக உள்ளது.", ta_sound:"த மூன் இஸ் பிரைட்." },
-{ id:"s234", en:"Come soon.", ta_meaning:"சீக்கிரம் வா.", ta_sound:"கம் சூன்." },
-{ id:"s235", en:"This room is big.", ta_meaning:"இந்த அறை பெரியது.", ta_sound:"திஸ் ரூம் இஸ் பிக்." },
-
-{ id:"s236", en:"Cool weather.", ta_meaning:"குளிர்ந்த வானிலை.", ta_sound:"கூல் வெதர்." },
-{ id:"s237", en:"Rain is coming.", ta_meaning:"மழை வரப்போகிறது.", ta_sound:"ரெயின் இஸ் கமிங்." },
-{ id:"s238", en:"The train is late.", ta_meaning:"ரயில் தாமதம்.", ta_sound:"த ட்ரெயின் இஸ் லேட்." },
-{ id:"s239", en:"Main road.", ta_meaning:"முக்கிய சாலை.", ta_sound:"மேயின் ரோட்." },
-{ id:"s240", en:"I have pain.", ta_meaning:"எனக்கு வலி உள்ளது.", ta_sound:"ஐ ஹேவ் பெயின்." },
-
-{ id:"s241", en:"Stay here.", ta_meaning:"இங்கே தங்கு.", ta_sound:"ஸ்டே ஹியர்." },
-{ id:"s242", en:"May I come in?", ta_meaning:"நான் உள்ளே வரலாமா?", ta_sound:"மே ஐ கம் இன்?" },
-{ id:"s243", en:"Today is Sunday.", ta_meaning:"இன்று ஞாயிறு.", ta_sound:"டுடே இஸ் சண்டே." },
-{ id:"s244", en:"Boat is in water.", ta_meaning:"படகு தண்ணீரில் உள்ளது.", ta_sound:"போட் இஸ் இன் வாட்டர்." },
-{ id:"s245", en:"This road is long.", ta_meaning:"இந்த சாலை நீளமாக உள்ளது.", ta_sound:"திஸ் ரோட் இஸ் லாங்." },
-
-{ id:"s246", en:"Use soap.", ta_meaning:"சோப்பு பயன்படுத்து.", ta_sound:"யூஸ் சோப்." },
-{ id:"s247", en:"Go out.", ta_meaning:"வெளியே போ.", ta_sound:"கோ அவுட்." },
-{ id:"s248", en:"This is my house.", ta_meaning:"இது என் வீடு.", ta_sound:"திஸ் இஸ் மை ஹவுஸ்." },
-{ id:"s249", en:"Cloud is dark.", ta_meaning:"மேகம் கருமையாக உள்ளது.", ta_sound:"க்ளவுட் இஸ் டார்க்." },
-{ id:"s250", en:"Don't speak loud.", ta_meaning:"சத்தமாக பேசாதே.", ta_sound:"டோன்ட் ஸ்பீக் லவுட்." },
-
-{ id:"s251", en:"I need water.", ta_meaning:"எனக்கு தண்ணீர் வேண்டும்.", ta_sound:"ஐ நீட் வாட்டர்." },
-{ id:"s252", en:"Meet me tomorrow.", ta_meaning:"நாளை என்னை சந்தி.", ta_sound:"மீட் மீ டுமாரோ." },
-{ id:"s253", en:"Stay calm.", ta_meaning:"அமைதியாக இரு.", ta_sound:"ஸ்டே காம்." },
-{ id:"s254", en:"You should study.", ta_meaning:"நீ படிக்க வேண்டும்.", ta_sound:"யூ ஷுட் ஸ்டடி." },
-{ id:"s255", en:"See you tomorrow.", ta_meaning:"நாளை சந்திப்போம்.", ta_sound:"சீ யூ டுமாரோ." },
 // ===== Fluent Pack 6 (Words 505–604) =====
 {
   id:"w505",
@@ -5698,66 +4829,6 @@ init();
   example_en:"This is free.",
   example_ta:"இது இலவசம்."
 },
-// ===== Fluent Pack 6 (Sentences 256–305) =====
-{ id:"s256", en:"The cat is small.", ta_meaning:"பூனை சிறியது.", ta_sound:"த கேட் இஸ் ஸ்மால்." },
-{ id:"s257", en:"This hat is new.", ta_meaning:"இந்த தொப்பி புதியது.", ta_sound:"திஸ் ஹேட் இஸ் நியூ." },
-{ id:"s258", en:"Sit on the mat.", ta_meaning:"பாயில் உட்கார்.", ta_sound:"சிட் ஆன் த மேட்." },
-{ id:"s259", en:"My bag is heavy.", ta_meaning:"என் பை கனமாக உள்ளது.", ta_sound:"மை பேக் இஸ் ஹெவி." },
-{ id:"s260", en:"That man is kind.", ta_meaning:"அந்த மனிதர் நல்லவர்.", ta_sound:"தாட் மேன் இஸ் கைண்ட்." },
-
-{ id:"s261", en:"Turn on the fan.", ta_meaning:"விசிறியை ஆன் செய்.", ta_sound:"டர்ன் ஆன் த ஃபேன்." },
-{ id:"s262", en:"See the map.", ta_meaning:"வரைபடத்தை பார்.", ta_sound:"சீ த மேப்." },
-{ id:"s263", en:"Go to bed.", ta_meaning:"படுக்கைக்கு போ.", ta_sound:"கோ டு பெட்." },
-{ id:"s264", en:"This pen is mine.", ta_meaning:"இந்த பேனா என்னுடையது.", ta_sound:"திஸ் பென் இஸ் மைன்." },
-{ id:"s265", en:"Ten rupees.", ta_meaning:"பத்து ரூபாய்.", ta_sound:"டென் ரூபீஸ்." },
-
-{ id:"s266", en:"Get ready.", ta_meaning:"தயார் ஆகு.", ta_sound:"கெட் ரெடி." },
-{ id:"s267", en:"Set the time.", ta_meaning:"நேரத்தை செட் செய்.", ta_sound:"செட் த டைம்." },
-{ id:"s268", en:"Let me go.", ta_meaning:"என்னை போக விடு.", ta_sound:"லெட் மீ கோ." },
-{ id:"s269", en:"Next lesson.", ta_meaning:"அடுத்த பாடம்.", ta_sound:"நெக்ஸ்ட் லெசன்." },
-{ id:"s270", en:"Sit here.", ta_meaning:"இங்கே உட்கார்.", ta_sound:"சிட் ஹியர்." },
-
-{ id:"s271", en:"I will win.", ta_meaning:"நான் ஜெயிப்பேன்.", ta_sound:"ஐ வில் வின்." },
-{ id:"s272", en:"Tea is hot.", ta_meaning:"டீ சூடு.", ta_sound:"டீ இஸ் ஹாட்." },
-{ id:"s273", en:"Open the box.", ta_meaning:"பெட்டியை திற.", ta_sound:"ஓபன் த பாக்ஸ்." },
-{ id:"s274", en:"Dog is friendly.", ta_meaning:"நாய் நண்பன்.", ta_sound:"டாக் இஸ் ஃப்ரெண்ட்லி." },
-{ id:"s275", en:"Stop now.", ta_meaning:"இப்போ நிறுத்து.", ta_sound:"ஸ்டாப் நவ்." },
-
-{ id:"s276", en:"Don't drop it.", ta_meaning:"அதை கீழே விடாதே.", ta_sound:"டோன்ட் ட்ராப் இட்." },
-{ id:"s277", en:"I am from India.", ta_meaning:"நான் இந்தியாவிலிருந்து.", ta_sound:"ஐ ஆம் ஃப்ராம் இந்தியா." },
-{ id:"s278", en:"Come here.", ta_meaning:"இங்கே வா.", ta_sound:"கம் ஹியர்." },
-{ id:"s279", en:"The sun is hot.", ta_meaning:"சூரியன் சூடு.", ta_sound:"த சன் இஸ் ஹாட்." },
-{ id:"s280", en:"Bus is coming.", ta_meaning:"பஸ் வருகிறது.", ta_sound:"பஸ் இஸ் கமிங்." },
-
-{ id:"s281", en:"One cup of tea.", ta_meaning:"ஒரு கப் டீ.", ta_sound:"வன் கப் ஆஃப் டீ." },
-{ id:"s282", en:"Cut the paper.", ta_meaning:"காகிதத்தை வெட்டு.", ta_sound:"கட் த பேப்பர்." },
-{ id:"s283", en:"This is fun.", ta_meaning:"இது வேடிக்கை.", ta_sound:"திஸ் இஸ் ஃபன்." },
-{ id:"s284", en:"Run fast.", ta_meaning:"வேகமாக ஓடு.", ta_sound:"ரன் ஃபாஸ்ட்." },
-{ id:"s285", en:"Lunch is ready.", ta_meaning:"மதிய உணவு தயாராக உள்ளது.", ta_sound:"லன்ச் இஸ் ரெடி." },
-
-{ id:"s286", en:"Spell the word.", ta_meaning:"வார்த்தையை எழுத்துச் சொல்லு.", ta_sound:"ஸ்பெல் த வர்ட்." },
-{ id:"s287", en:"Try again.", ta_meaning:"மீண்டும் முயற்சி செய்.", ta_sound:"ட்ரை அகெயின்." },
-{ id:"s288", en:"Drive carefully.", ta_meaning:"கவனமாக ஓட்டு.", ta_sound:"ட்ரைவ் கேர் ஃபுல்லி." },
-{ id:"s289", en:"Blue color.", ta_meaning:"நீல நிறம்.", ta_sound:"ப்ளூ கலர்." },
-{ id:"s290", en:"Drink water.", ta_meaning:"தண்ணீர் குடி.", ta_sound:"ட்ரிங்க் வாட்டர்." },
-
-{ id:"s291", en:"Coffee is strong.", ta_meaning:"காபி ஸ்ட்ராங்.", ta_sound:"காஃபி இஸ் ஸ்ட்ராங்." },
-{ id:"s292", en:"Less sugar.", ta_meaning:"சர்க்கரை குறைவு.", ta_sound:"லெஸ் ஷுகர்." },
-{ id:"s293", en:"Add salt.", ta_meaning:"உப்பு போடு.", ta_sound:"ஆட் சால்ட்." },
-{ id:"s294", en:"Milk is good.", ta_meaning:"பால் நல்லது.", ta_sound:"மில்க் இஸ் குட்." },
-{ id:"s295", en:"Eat fruit.", ta_meaning:"பழம் சாப்பிடு.", ta_sound:"ஈட் ஃப்ரூட்." },
-
-{ id:"s296", en:"Apple is red.", ta_meaning:"ஆப்பிள் சிவப்பு.", ta_sound:"ஆப்பிள் இஸ் ரெட்." },
-{ id:"s297", en:"Banana is yellow.", ta_meaning:"வாழைப்பழம் மஞ்சள்.", ta_sound:"பனானா இஸ் யெல்லோ." },
-{ id:"s298", en:"Mango is sweet.", ta_meaning:"மாம்பழம் இனிப்பு.", ta_sound:"மேங்கோ இஸ் ஸ்வீட்." },
-{ id:"s299", en:"Cut onion.", ta_meaning:"வெங்காயம் வெட்டு.", ta_sound:"கட் அனியன்." },
-{ id:"s300", en:"Go to market.", ta_meaning:"சந்தைக்கு போ.", ta_sound:"கோ டு மார்கெட்." },
-
-{ id:"s301", en:"What is the price?", ta_meaning:"விலை என்ன?", ta_sound:"வாட் இஸ் த ப்ரைஸ்?" },
-{ id:"s302", en:"This is cheap.", ta_meaning:"இது மலிவு.", ta_sound:"திஸ் இஸ் சீப்." },
-{ id:"s303", en:"This is costly.", ta_meaning:"இது விலை அதிகம்.", ta_sound:"திஸ் இஸ் காஸ்ட்லி." },
-{ id:"s304", en:"Pay the bill.", ta_meaning:"பில் செலுத்து.", ta_sound:"பே த பில்." },
-{ id:"s305", en:"Give change.", ta_meaning:"சில்லறை கொடு.", ta_sound:"கிவ் சேஞ்ச்." },
 // ===== Fluent Pack 7 (Words 605–704) =====
 
 // Common action verbs
@@ -6566,66 +5637,6 @@ init();
   example_en:"I hear a whistle.",
   example_ta:"நான் விசில் சத்தம் கேட்கிறேன்."
 },
-// ===== Fluent Pack 7 (Sentences 306–355) =====
-{ id:"s306", en:"Read this book.", ta_meaning:"இந்த புத்தகம் படி.", ta_sound:"ரீட் திஸ் புக்." },
-{ id:"s307", en:"Write your name.", ta_meaning:"உன் பெயரை எழுது.", ta_sound:"ரைட் யோர் நேம்." },
-{ id:"s308", en:"Speak in English.", ta_meaning:"ஆங்கிலத்தில் பேசு.", ta_sound:"ஸ்பீக் இன் இங்கிலிஷ்." },
-{ id:"s309", en:"Listen carefully.", ta_meaning:"கவனமாக கேள்.", ta_sound:"லிஸன் கேர் ஃபுல்லி." },
-{ id:"s310", en:"Learn daily.", ta_meaning:"தினமும் கற்று.", ta_sound:"லர்ன் டெய்லி." },
-
-{ id:"s311", en:"Teach me English.", ta_meaning:"எனக்கு ஆங்கிலம் கற்பி.", ta_sound:"டீச் மீ இங்கிலிஷ்." },
-{ id:"s312", en:"Study now.", ta_meaning:"இப்போ படி.", ta_sound:"ஸ்டடி நவ்." },
-{ id:"s313", en:"Practice speaking.", ta_meaning:"பேச பயிற்சி செய்.", ta_sound:"ப்ராக்டிஸ் ஸ்பீக்கிங்." },
-{ id:"s314", en:"Repeat after me.", ta_meaning:"என் பின்னால் மீண்டும் சொல்.", ta_sound:"ரிபீட் ஆஃப்டர் மீ." },
-{ id:"s315", en:"Open the door.", ta_meaning:"கதவை திற.", ta_sound:"ஓபன் த டோர்." },
-
-{ id:"s316", en:"Close the window.", ta_meaning:"ஜன்னலை மூடு.", ta_sound:"க்ளோஸ் த விண்டோ." },
-{ id:"s317", en:"Start the class.", ta_meaning:"வகுப்பை தொடங்கு.", ta_sound:"ஸ்டார்ட் த கிளாஸ்." },
-{ id:"s318", en:"Stop here.", ta_meaning:"இங்கே நிறுத்து.", ta_sound:"ஸ்டாப் ஹியர்." },
-{ id:"s319", en:"Come here.", ta_meaning:"இங்கே வா.", ta_sound:"கம் ஹியர்." },
-{ id:"s320", en:"Go now.", ta_meaning:"இப்போ போ.", ta_sound:"கோ நவ்." },
-
-{ id:"s321", en:"Walk slowly.", ta_meaning:"மெதுவாக நட.", ta_sound:"வாக் ஸ்லோலி." },
-{ id:"s322", en:"Run fast.", ta_meaning:"வேகமாக ஓடு.", ta_sound:"ரன் ஃபாஸ்ட்." },
-{ id:"s323", en:"Sit down.", ta_meaning:"உட்கார்.", ta_sound:"சிட் டவுன்." },
-{ id:"s324", en:"Stand here.", ta_meaning:"இங்கே நில்.", ta_sound:"ஸ்டேண்ட் ஹியர்." },
-{ id:"s325", en:"Please help me.", ta_meaning:"தயவு செய்து எனக்கு உதவி செய்.", ta_sound:"ப்ளீஸ் ஹெல்ப் மீ." },
-
-{ id:"s326", en:"Sorry, I am late.", ta_meaning:"மன்னிக்கவும், நான் தாமதம்.", ta_sound:"சாரி, ஐ ஆம் லேட்." },
-{ id:"s327", en:"Thanks a lot.", ta_meaning:"மிகவும் நன்றி.", ta_sound:"தேங்க்ஸ் அ லாட்." },
-{ id:"s328", en:"You are welcome.", ta_meaning:"வரவேற்கிறேன்.", ta_sound:"யூ ஆர் வெல்கம்." },
-{ id:"s329", en:"Excuse me.", ta_meaning:"மன்னிக்கவும்.", ta_sound:"எக்ஸ்க்யூஸ் மீ." },
-{ id:"s330", en:"Okay, let's go.", ta_meaning:"சரி, போகலாம்.", ta_sound:"ஓகே, லெட்ஸ் கோ." },
-
-{ id:"s331", en:"Good job.", ta_meaning:"நல்ல வேலை.", ta_sound:"குட் ஜாப்." },
-{ id:"s332", en:"Great work!", ta_meaning:"அருமையான வேலை!", ta_sound:"க்ரேட் வொர்க்!" },
-{ id:"s333", en:"My father is kind.", ta_meaning:"என் அப்பா நல்லவர்.", ta_sound:"மை ஃபாதர் இஸ் கைண்ட்." },
-{ id:"s334", en:"My mother cooks.", ta_meaning:"என் அம்மா சமைப்பார்.", ta_sound:"மை மதர் குக்ஸ்." },
-{ id:"s335", en:"My brother studies.", ta_meaning:"என் அண்ணன் படிக்கிறார்.", ta_sound:"மை ப்ரதர் ஸ்டடீஸ்." },
-
-{ id:"s336", en:"My sister sings.", ta_meaning:"என் அக்கா பாடுவார்.", ta_sound:"மை சிஸ்டர் சிங்ஸ்." },
-{ id:"s337", en:"He is my friend.", ta_meaning:"அவன் என் நண்பன்.", ta_sound:"ஹீ இஸ் மை ஃப்ரெண்ட்." },
-{ id:"s338", en:"I am a student.", ta_meaning:"நான் ஒரு மாணவர்.", ta_sound:"ஐ ஆம் அ ஸ்டூடெண்ட்." },
-{ id:"s339", en:"The child is happy.", ta_meaning:"குழந்தை மகிழ்ச்சி.", ta_sound:"த சைல்ட் இஸ் ஹாப்பி." },
-{ id:"s340", en:"That woman is kind.", ta_meaning:"அந்த பெண் நல்லவர்.", ta_sound:"தாட் வுமன் இஸ் கைண்ட்." },
-
-{ id:"s341", en:"Good morning.", ta_meaning:"காலை வணக்கம்.", ta_sound:"குட் மார்னிங்." },
-{ id:"s342", en:"Good night.", ta_meaning:"இரவு வணக்கம்.", ta_sound:"குட் நைட்." },
-{ id:"s343", en:"Do it now.", ta_meaning:"இப்போ செய்.", ta_sound:"டூ இட் நவ்." },
-{ id:"s344", en:"I will come later.", ta_meaning:"நான் பிறகு வருவேன்.", ta_sound:"ஐ வில் கம் லேட்டர்." },
-{ id:"s345", en:"Go to the shop.", ta_meaning:"கடைக்கு போ.", ta_sound:"கோ டு த ஷாப்." },
-
-{ id:"s346", en:"He goes to office.", ta_meaning:"அவன் அலுவலகம் போகிறான்.", ta_sound:"ஹீ கோஸ் டு ஆஃபிஸ்." },
-{ id:"s347", en:"Go to hospital.", ta_meaning:"மருத்துவமனைக்கு போ.", ta_sound:"கோ டு ஹாஸ்பிட்டல்." },
-{ id:"s348", en:"Call me on phone.", ta_meaning:"போனில் கால் செய்.", ta_sound:"கால் மீ ஆன் ஃபோன்." },
-{ id:"s349", en:"Send a message.", ta_meaning:"ஒரு மெசேஜ் அனுப்பு.", ta_sound:"செண்ட் அ மெசேஜ்." },
-{ id:"s350", en:"I have a problem.", ta_meaning:"எனக்கு ஒரு பிரச்சனை உள்ளது.", ta_sound:"ஐ ஹேவ் அ ப்ராப்ளம்." },
-
-{ id:"s351", en:"This is easy.", ta_meaning:"இது எளிது.", ta_sound:"திஸ் இஸ் ஈசி." },
-{ id:"s352", en:"This is hard.", ta_meaning:"இது கடினம்.", ta_sound:"திஸ் இஸ் ஹார்ட்." },
-{ id:"s353", en:"You are right.", ta_meaning:"நீ சரி.", ta_sound:"யூ ஆர் ரைட்." },
-{ id:"s354", en:"This is wrong.", ta_meaning:"இது தவறு.", ta_sound:"திஸ் இஸ் ராங்." },
-{ id:"s355", en:"Give the answer.", ta_meaning:"பதில் கொடு.", ta_sound:"கிவ் த ஆன்சர்." },
 // ===== Fluent Pack 8 (Words 705–804) =====
 
 // Basic question words (WH words)
@@ -7384,66 +6395,6 @@ init();
   example_en:"Take the quiz.",
   example_ta:"க்விஸ் செய்யுங்கள்."
 },
-// ===== Fluent Pack 8 (Sentences 356–405) =====
-{ id:"s356", en:"What is this?", ta_meaning:"இது என்ன?", ta_sound:"வாட் இஸ் திஸ்?" },
-{ id:"s357", en:"Why are you sad?", ta_meaning:"நீ ஏன் சோகமாக இருக்கிறாய்?", ta_sound:"வை ஆர் யூ சாட்?" },
-{ id:"s358", en:"Where is my phone?", ta_meaning:"என் போன் எங்கே?", ta_sound:"வேர் இஸ் மை ஃபோன்?" },
-{ id:"s359", en:"When will you come?", ta_meaning:"நீ எப்போது வருவாய்?", ta_sound:"வென் வில் யூ கம்?" },
-{ id:"s360", en:"Who is he?", ta_meaning:"அவன் யார்?", ta_sound:"ஹூ இஸ் ஹீ?" },
-
-{ id:"s361", en:"How are you?", ta_meaning:"நீ எப்படி இருக்கிறாய்?", ta_sound:"ஹவ் ஆர் யூ?" },
-{ id:"s362", en:"One apple.", ta_meaning:"ஒரு ஆப்பிள்.", ta_sound:"வன் ஆப்பிள்." },
-{ id:"s363", en:"Two books.", ta_meaning:"இரண்டு புத்தகங்கள்.", ta_sound:"டூ புக்க்ஸ்." },
-{ id:"s364", en:"Three pens.", ta_meaning:"மூன்று பேனாக்கள்.", ta_sound:"த்ரீ பென்ஸ்." },
-{ id:"s365", en:"Four chairs.", ta_meaning:"நான்கு நாற்காலிகள்.", ta_sound:"ஃபோர் சேர்ஸ்." },
-
-{ id:"s366", en:"Five minutes.", ta_meaning:"ஐந்து நிமிடம்.", ta_sound:"ஃபைவ் மினிட்ஸ்." },
-{ id:"s367", en:"Six cups.", ta_meaning:"ஆறு கப்புகள்.", ta_sound:"சிக்ஸ் கப்ஸ்." },
-{ id:"s368", en:"Seven days.", ta_meaning:"ஏழு நாட்கள்.", ta_sound:"செவன் டேஸ்." },
-{ id:"s369", en:"Eight hours.", ta_meaning:"எட்டு மணி.", ta_sound:"ஏட் ஆவர்ஸ்." },
-{ id:"s370", en:"Nine people.", ta_meaning:"ஒன்பது பேர்.", ta_sound:"நைன் பீப்புள்." },
-
-{ id:"s371", en:"Ten rupees.", ta_meaning:"பத்து ரூபாய்.", ta_sound:"டென் ரூபீஸ்." },
-{ id:"s372", en:"Small bag.", ta_meaning:"சிறிய பை.", ta_sound:"ஸ்மால் பேக்." },
-{ id:"s373", en:"Big house.", ta_meaning:"பெரிய வீடு.", ta_sound:"பிக் ஹவுஸ்." },
-{ id:"s374", en:"The road is long.", ta_meaning:"சாலை நீளம்.", ta_sound:"த ரோட் இஸ் லாங்." },
-{ id:"s375", en:"This phone is new.", ta_meaning:"இந்த போன் புதியது.", ta_sound:"திஸ் ஃபோன் இஸ் நியூ." },
-
-{ id:"s376", en:"That book is old.", ta_meaning:"அந்த புத்தகம் பழையது.", ta_sound:"தாட் புக் இஸ் ஓல்ட்." },
-{ id:"s377", en:"I am happy.", ta_meaning:"நான் மகிழ்ச்சி.", ta_sound:"ஐ ஆம் ஹாப்பி." },
-{ id:"s378", en:"He is sad.", ta_meaning:"அவன் சோகமாக இருக்கிறான்.", ta_sound:"ஹீ இஸ் சாட்." },
-{ id:"s379", en:"Good boy.", ta_meaning:"நல்ல பையன்.", ta_sound:"குட் பாய்." },
-{ id:"s380", en:"Bad habit.", ta_meaning:"மோசமான பழக்கம்.", ta_sound:"பேட் ஹேபிட்." },
-
-{ id:"s381", en:"Give me a pen.", ta_meaning:"எனக்கு பேனா கொடு.", ta_sound:"கிவ் மீ அ பென்." },
-{ id:"s382", en:"Table is clean.", ta_meaning:"மேசை சுத்தம்.", ta_sound:"டேபிள் இஸ் கிளீன்." },
-{ id:"s383", en:"Sit on the chair.", ta_meaning:"நாற்காலியில் உட்கார்.", ta_sound:"சிட் ஆன் த சேர்." },
-{ id:"s384", en:"Open the door.", ta_meaning:"கதவை திற.", ta_sound:"ஓபன் த டோர்." },
-{ id:"s385", en:"Close the window.", ta_meaning:"ஜன்னலை மூடு.", ta_sound:"க்ளோஸ் த விண்டோ." },
-
-{ id:"s386", en:"My room is big.", ta_meaning:"என் அறை பெரியது.", ta_sound:"மை ரூம் இஸ் பிக்." },
-{ id:"s387", en:"This house is new.", ta_meaning:"இந்த வீடு புதியது.", ta_sound:"திஸ் ஹவுஸ் இஸ் நியூ." },
-{ id:"s388", en:"Eat food.", ta_meaning:"உணவு சாப்பிடு.", ta_sound:"ஈட் ஃபூட்." },
-{ id:"s389", en:"Drink water.", ta_meaning:"தண்ணீர் குடி.", ta_sound:"ட்ரிங்க் வாட்டர்." },
-{ id:"s390", en:"Sleep early.", ta_meaning:"சீக்கிரம் தூங்கு.", ta_sound:"ஸ்லீப் எர்லி." },
-
-{ id:"s391", en:"Wake up now.", ta_meaning:"இப்போ எழுந்து.", ta_sound:"வேக் அப் நவ்." },
-{ id:"s392", en:"I work daily.", ta_meaning:"நான் தினமும் வேலை செய்கிறேன்.", ta_sound:"ஐ வொர்க் டெய்லி." },
-{ id:"s393", en:"Play with me.", ta_meaning:"என்னுடன் விளையாடு.", ta_sound:"ப்ளே வித் மீ." },
-{ id:"s394", en:"Watch TV.", ta_meaning:"டிவி பார்.", ta_sound:"வாட்ச் டிவி." },
-{ id:"s395", en:"Show me.", ta_meaning:"எனக்கு காட்டு.", ta_sound:"ஷோ மீ." },
-
-{ id:"s396", en:"I need water.", ta_meaning:"எனக்கு தண்ணீர் தேவை.", ta_sound:"ஐ நீட் வாட்டர்." },
-{ id:"s397", en:"I want tea.", ta_meaning:"எனக்கு டீ வேண்டும்.", ta_sound:"ஐ வாண்ட் டீ." },
-{ id:"s398", en:"I like it.", ta_meaning:"எனக்கு இது பிடிக்கும்.", ta_sound:"ஐ லைக் இட்." },
-{ id:"s399", en:"I love my family.", ta_meaning:"எனக்கு என் குடும்பம் பிடிக்கும்.", ta_sound:"ஐ லவ் மை ஃபாமிலி." },
-{ id:"s400", en:"I know this.", ta_meaning:"இது எனக்கு தெரியும்.", ta_sound:"ஐ நோ திஸ்." },
-
-{ id:"s401", en:"I think so.", ta_meaning:"நான் அப்படி நினைக்கிறேன்.", ta_sound:"ஐ திங்க் சோ." },
-{ id:"s402", en:"I feel good.", ta_meaning:"நான் நல்லா உணர்கிறேன்.", ta_sound:"ஐ ஃபீல் குட்." },
-{ id:"s403", en:"Wait here.", ta_meaning:"இங்கே காத்திரு.", ta_sound:"வேட் ஹியர்." },
-{ id:"s404", en:"Stay here.", ta_meaning:"இங்கே இரு.", ta_sound:"ஸ்டே ஹியர்." },
-{ id:"s405", en:"Take the quiz.", ta_meaning:"க்விஸ் செய்யுங்கள்.", ta_sound:"டேக் த க்விஸ்." },
 // ===== Fluent Pack 9 (Words 805–904) =====
 
 // Core grammar helper words
@@ -8215,66 +7166,6 @@ init();
   example_en:"Call the police.",
   example_ta:"போலீஸை அழை."
 },
-// ===== Fluent Pack 9 (Sentences 406–455) =====
-{ id:"s406", en:"I am ready.", ta_meaning:"நான் தயாராக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ரெடி." },
-{ id:"s407", en:"You are good.", ta_meaning:"நீ நல்லவன்.", ta_sound:"யூ ஆர் குட்." },
-{ id:"s408", en:"He is my friend.", ta_meaning:"அவன் என் நண்பன்.", ta_sound:"ஹீ இஸ் மை ஃப்ரெண்ட்." },
-{ id:"s409", en:"She is happy.", ta_meaning:"அவள் மகிழ்ச்சி.", ta_sound:"ஷீ இஸ் ஹாப்பி." },
-{ id:"s410", en:"We are students.", ta_meaning:"நாம் மாணவர்கள்.", ta_sound:"வீ ஆர் ஸ்டூடெண்ட்ஸ்." },
-
-{ id:"s411", en:"They are coming.", ta_meaning:"அவர்கள் வருகிறார்கள்.", ta_sound:"தே ஆர் கமிங்." },
-{ id:"s412", en:"I am fine.", ta_meaning:"நான் நலமாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ஃபைன்." },
-{ id:"s413", en:"He is good.", ta_meaning:"அவன் நல்லவன்.", ta_sound:"ஹீ இஸ் குட்." },
-{ id:"s414", en:"You are smart.", ta_meaning:"நீ புத்திசாலி.", ta_sound:"யூ ஆர் ஸ்மார்ட்." },
-{ id:"s415", en:"Do it now.", ta_meaning:"இப்போ செய்.", ta_sound:"டூ இட் நவ்." },
-
-{ id:"s416", en:"He does work.", ta_meaning:"அவன் வேலை செய்கிறான்.", ta_sound:"ஹீ டஸ் வொர்க்." },
-{ id:"s417", en:"I did it.", ta_meaning:"நான் அதை செய்தேன்.", ta_sound:"ஐ டிட் இட்." },
-{ id:"s418", en:"I can read.", ta_meaning:"நான் படிக்க முடியும்.", ta_sound:"ஐ கேன் ரீட்." },
-{ id:"s419", en:"I can't swim.", ta_meaning:"நான் நீந்த முடியாது.", ta_sound:"ஐ கேன்ட் ஸ்விம்." },
-{ id:"s420", en:"I will come.", ta_meaning:"நான் வருவேன்.", ta_sound:"ஐ வில் கம்." },
-
-{ id:"s421", en:"I won't go.", ta_meaning:"நான் போக மாட்டேன்.", ta_sound:"ஐ வோன்ட் கோ." },
-{ id:"s422", en:"Tea and coffee.", ta_meaning:"டீ மற்றும் காபி.", ta_sound:"டீ அண்ட் காஃபி." },
-{ id:"s423", en:"Tea or coffee?", ta_meaning:"டீ அல்லது காபி?", ta_sound:"டீ ஆர் காஃபி?" },
-{ id:"s424", en:"I was tired, so I slept.", ta_meaning:"நான் சோர்வாக இருந்தேன், அதனால் தூங்கினேன்.", ta_sound:"ஐ வாஸ் டயர்ட், சோ ஐ ஸ்லெப்ட்." },
-{ id:"s425", en:"Go to school.", ta_meaning:"பள்ளிக்கு போ.", ta_sound:"கோ டு ஸ்கூல்." },
-
-{ id:"s426", en:"From India.", ta_meaning:"இந்தியாவிலிருந்து.", ta_sound:"ஃப்ராம் இந்தியா." },
-{ id:"s427", en:"A book.", ta_meaning:"ஒரு புத்தகம்.", ta_sound:"அ புக்." },
-{ id:"s428", en:"An apple.", ta_meaning:"ஒரு ஆப்பிள்.", ta_sound:"அன் ஆப்பிள்." },
-{ id:"s429", en:"The book is here.", ta_meaning:"அந்த புத்தகம் இங்கே.", ta_sound:"த புக் இஸ் ஹியர்." },
-{ id:"s430", en:"I have a pen.", ta_meaning:"என்னிடம் பேனா உள்ளது.", ta_sound:"ஐ ஹேவ் அ பென்." },
-
-{ id:"s431", en:"He has a phone.", ta_meaning:"அவனிடம் போன் உள்ளது.", ta_sound:"ஹீ ஹாஸ் அ ஃபோன்." },
-{ id:"s432", en:"I had tea.", ta_meaning:"நான் டீ குடித்தேன்.", ta_sound:"ஐ ஹேட் டீ." },
-{ id:"s433", en:"Good morning!", ta_meaning:"காலை வணக்கம்!", ta_sound:"குட் மார்னிங்!" },
-{ id:"s434", en:"Good night!", ta_meaning:"இரவு வணக்கம்!", ta_sound:"குட் நைட்!" },
-{ id:"s435", en:"How are you?", ta_meaning:"நீ எப்படி இருக்கிறாய்?", ta_sound:"ஹவ் ஆர் யூ?" },
-
-{ id:"s436", en:"I am fine.", ta_meaning:"நான் நன்றாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ஃபைன்." },
-{ id:"s437", en:"My phone.", ta_meaning:"என் போன்.", ta_sound:"மை ஃபோன்." },
-{ id:"s438", en:"Your book.", ta_meaning:"உன் புத்தகம்.", ta_sound:"யோர் புக்." },
-{ id:"s439", en:"His bag.", ta_meaning:"அவனுடைய பை.", ta_sound:"ஹிஸ் பேக்." },
-{ id:"s440", en:"Her pen.", ta_meaning:"அவளுடைய பேனா.", ta_sound:"ஹர் பென்." },
-
-{ id:"s441", en:"Our home.", ta_meaning:"நமது வீடு.", ta_sound:"ஆவர் ஹோம்." },
-{ id:"s442", en:"Their school.", ta_meaning:"அவர்களின் பள்ளி.", ta_sound:"தேர் ஸ்கூல்." },
-{ id:"s443", en:"This is good.", ta_meaning:"இது நல்லது.", ta_sound:"திஸ் இஸ் குட்." },
-{ id:"s444", en:"That is bad.", ta_meaning:"அது மோசம்.", ta_sound:"தாட் இஸ் பேட்." },
-{ id:"s445", en:"These are books.", ta_meaning:"இவை புத்தகங்கள்.", ta_sound:"தீஸ் ஆர் புக்க்ஸ்." },
-
-{ id:"s446", en:"Those are pens.", ta_meaning:"அவை பேனாக்கள்.", ta_sound:"தோஸ் ஆர் பென்ஸ்." },
-{ id:"s447", en:"Come here.", ta_meaning:"இங்கே வா.", ta_sound:"கம் ஹியர்." },
-{ id:"s448", en:"Go there.", ta_meaning:"அங்கே போ.", ta_sound:"கோ தேர்." },
-{ id:"s449", en:"Eat then sleep.", ta_meaning:"சாப்பிட்டு பிறகு தூங்கு.", ta_sound:"ஈட் தென் ஸ்லீப்." },
-{ id:"s450", en:"Always smile.", ta_meaning:"எப்போதும் சிரி.", ta_sound:"ஆல்வேஸ் ஸ்மைல்." },
-
-{ id:"s451", en:"Never give up.", ta_meaning:"எப்போதும் விடாதே.", ta_sound:"நெவர் கிவ் அப்." },
-{ id:"s452", en:"Maybe later.", ta_meaning:"ஒருவேளை பிறகு.", ta_sound:"மேபி லேட்டர்." },
-{ id:"s453", en:"Sure, I will come.", ta_meaning:"நிச்சயம், நான் வருவேன்.", ta_sound:"ஷூர், ஐ வில் கம்." },
-{ id:"s454", en:"Buy a ticket.", ta_meaning:"டிக்கெட் வாங்கு.", ta_sound:"பை அ டிக்கெட்." },
-{ id:"s455", en:"Go to station.", ta_meaning:"ஸ்டேஷனுக்கு போ.", ta_sound:"கோ டு ஸ்டேஷன்." },
 // ===== Fluent Pack 10 (Words 905–1004) =====
 
 // Common daily verbs
@@ -9058,6 +7949,555 @@ init();
   example_en:"You are welcome.",
   example_ta:"வரவேற்கிறேன்."
 },
+  ],
+
+  // Sentences (starter; expand later)
+  sentences: [
+    { id: "s1", en: "Hello!", ta_meaning: "வணக்கம்!", ta_sound: "ஹலோ!" },
+    { id: "s2", en: "How are you?", ta_meaning: "நீங்கள் எப்படி இருக்கிறீர்கள்?", ta_sound: "ஹவ் ஆர் யூ?" },
+    { id: "s3", en: "I am fine.", ta_meaning: "நான் நன்றாக இருக்கிறேன்.", ta_sound: "ஐ ஆம் ஃபைன்." },
+    { id: "s4", en: "Thank you.", ta_meaning: "நன்றி.", ta_sound: "தேங்க் யூ." },
+    { id: "s5", en: "I like milk.", ta_meaning: "எனக்கு பால் பிடிக்கும்.", ta_sound: "ஐ லைக் மில்க்." },
+   // ===== Fluent Pack 1 (Sentences 6–55) =====
+{ id:"s6", en:"What is your name?", ta_meaning:"உங்கள் பெயர் என்ன?", ta_sound:"வாட் இஸ் யோர் நேம்?" },
+{ id:"s7", en:"My name is Kishor.", ta_meaning:"என் பெயர் கிஷோர்.", ta_sound:"மை நேம் இஸ் கிஷோர்." },
+{ id:"s8", en:"Where are you from?", ta_meaning:"நீங்கள் எங்கிருந்து வந்தீர்கள்?", ta_sound:"வேர் ஆர் யூ ஃப்ரம்?" },
+{ id:"s9", en:"I am from Tamil Nadu.", ta_meaning:"நான் தமிழ்நாட்டில் இருந்து வந்தேன்.", ta_sound:"ஐ ஆம் ஃப்ரம் தமிழ்நாடு." },
+{ id:"s10", en:"Please speak slowly.", ta_meaning:"தயவு செய்து மெதுவாக பேசுங்கள்.", ta_sound:"ப்ளீஸ் ஸ்பீக் ஸ்லோலி." },
+
+{ id:"s11", en:"I don't understand.", ta_meaning:"எனக்கு புரியவில்லை.", ta_sound:"ஐ டோன்ட் அண்டர்ஸ்டாண்ட்." },
+{ id:"s12", en:"Can you repeat?", ta_meaning:"மீண்டும் சொல்ல முடியுமா?", ta_sound:"கேன் யூ ரிபீட்?" },
+{ id:"s13", en:"I am learning English.", ta_meaning:"நான் ஆங்கிலம் கற்றுக்கொள்கிறேன்.", ta_sound:"ஐ ஆம் லெர்னிங் இங்கிலிஷ்." },
+{ id:"s14", en:"I can read now.", ta_meaning:"நான் இப்போது படிக்க முடியும்.", ta_sound:"ஐ கேன் ரீட் நவ்." },
+{ id:"s15", en:"I want to speak English.", ta_meaning:"நான் ஆங்கிலம் பேச வேண்டும்.", ta_sound:"ஐ வான்ட் டு ஸ்பீக் இங்கிலிஷ்." },
+
+{ id:"s16", en:"Open the door.", ta_meaning:"கதவை திற.", ta_sound:"ஓபன் த டோர்." },
+{ id:"s17", en:"Close the window.", ta_meaning:"ஜன்னலை மூடு.", ta_sound:"க்ளோஸ் த விண்டோ." },
+{ id:"s18", en:"Switch on the light.", ta_meaning:"விளக்கை ஆன் செய்.", ta_sound:"ஸ்விட்ச் ஆன் த லைட்." },
+{ id:"s19", en:"Switch off the fan.", ta_meaning:"விசிறியை ஆஃப் செய்.", ta_sound:"ஸ்விட்ச் ஆஃப் த ஃபேன்." },
+{ id:"s20", en:"Sit on the chair.", ta_meaning:"நாற்காலியில் உட்கார்.", ta_sound:"சிட் ஆன் த சேர்." },
+
+{ id:"s21", en:"Stand up.", ta_meaning:"எழுந்து நில்.", ta_sound:"ஸ்டாண்ட் அப்." },
+{ id:"s22", en:"Sit down.", ta_meaning:"உட்கார்.", ta_sound:"சிட் டவுன்." },
+{ id:"s23", en:"Come here.", ta_meaning:"இங்கே வா.", ta_sound:"கம் ஹியர்." },
+{ id:"s24", en:"Go there.", ta_meaning:"அங்கே போ.", ta_sound:"கோ தேர்." },
+{ id:"s25", en:"Wait here.", ta_meaning:"இங்கே காத்திரு.", ta_sound:"வேய்ட் ஹியர்." },
+
+{ id:"s26", en:"Drink water.", ta_meaning:"தண்ணீர் குடி.", ta_sound:"ட்ரிங்க் வாட்டர்." },
+{ id:"s27", en:"I like tea.", ta_meaning:"எனக்கு தேநீர் பிடிக்கும்.", ta_sound:"ஐ லைக் டீ." },
+{ id:"s28", en:"I eat rice.", ta_meaning:"நான் சோறு சாப்பிடுவேன்.", ta_sound:"ஐ ஈட் ரைஸ்." },
+{ id:"s29", en:"Food is ready.", ta_meaning:"உணவு தயாராக உள்ளது.", ta_sound:"ஃபூட் இஸ் ரெடி." },
+{ id:"s30", en:"I am hungry.", ta_meaning:"எனக்கு பசிக்கிறது.", ta_sound:"ஐ ஆம் ஹங்க்ரி." },
+
+{ id:"s31", en:"I am happy.", ta_meaning:"நான் சந்தோஷமாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ஹாப்பி." },
+{ id:"s32", en:"I am sad.", ta_meaning:"நான் சோகமாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் சேட்." },
+{ id:"s33", en:"This is good.", ta_meaning:"இது நல்லது.", ta_sound:"திஸ் இஸ் குட்." },
+{ id:"s34", en:"This is bad.", ta_meaning:"இது கெட்டது.", ta_sound:"திஸ் இஸ் பேட்." },
+{ id:"s35", en:"It is hot.", ta_meaning:"சூடாக உள்ளது.", ta_sound:"இட் இஸ் ஹாட்." },
+
+{ id:"s36", en:"It is cold.", ta_meaning:"குளிராக உள்ளது.", ta_sound:"இட் இஸ் கோல்ட்." },
+{ id:"s37", en:"My bag is new.", ta_meaning:"என் பை புதியது.", ta_sound:"மை பேக் இஸ் நியூ." },
+{ id:"s38", en:"My phone is here.", ta_meaning:"என் போன் இங்கே உள்ளது.", ta_sound:"மை ஃபோன் இஸ் ஹியர்." },
+{ id:"s39", en:"I have a book.", ta_meaning:"என்னிடம் ஒரு புத்தகம் உள்ளது.", ta_sound:"ஐ ஹேவ் அ புக்." },
+{ id:"s40", en:"I read a book.", ta_meaning:"நான் புத்தகம் படிப்பேன்.", ta_sound:"ஐ ரீட் அ புக்." },
+
+{ id:"s41", en:"Write your name.", ta_meaning:"உன் பெயரை எழுது.", ta_sound:"ரைட் யோர் நேம்." },
+{ id:"s42", en:"Listen to me.", ta_meaning:"என்னை கேள்.", ta_sound:"லிஸன் டு மீ." },
+{ id:"s43", en:"Speak clearly.", ta_meaning:"தெளிவாக பேசு.", ta_sound:"ஸ்பீக் கிளியர்லி." },
+{ id:"s44", en:"Please help me.", ta_meaning:"தயவு செய்து உதவி செய்யுங்கள்.", ta_sound:"ப்ளீஸ் ஹெல்ப் மீ." },
+{ id:"s45", en:"Call me later.", ta_meaning:"பிறகு என்னை கால் செய்.", ta_sound:"கால் மீ லேட்டர்." },
+
+{ id:"s46", en:"I go to work.", ta_meaning:"நான் வேலைக்கு போவேன்.", ta_sound:"ஐ கோ டு வர்க்." },
+{ id:"s47", en:"I need money.", ta_meaning:"எனக்கு பணம் வேண்டும்.", ta_sound:"ஐ நீட் மணி." },
+{ id:"s48", en:"Go to the market.", ta_meaning:"சந்தைக்கு போ.", ta_sound:"கோ டு த மார்கெட்." },
+{ id:"s49", en:"This shop is big.", ta_meaning:"இந்த கடை பெரியது.", ta_sound:"திஸ் ஷாப் இஸ் பிக்." },
+{ id:"s50", en:"The road is long.", ta_meaning:"சாலை நீளமாக உள்ளது.", ta_sound:"த ரோட் இஸ் லாங்." },
+
+{ id:"s51", en:"Turn right.", ta_meaning:"வலது பக்கம் திரும்பு.", ta_sound:"டர்ன் ரைட்." },
+{ id:"s52", en:"Turn left.", ta_meaning:"இடது பக்கம் திரும்பு.", ta_sound:"டர்ன் லெஃப்ட்." },
+{ id:"s53", en:"Good night.", ta_meaning:"இனிய இரவு.", ta_sound:"குட் நைட்." },
+{ id:"s54", en:"Good morning.", ta_meaning:"காலை வணக்கம்.", ta_sound:"குட் மார்னிங்." },
+{ id:"s55", en:"See you tomorrow.", ta_meaning:"நாளை சந்திப்போம்.", ta_sound:"சி யூ டுமாரோ." },
+// ===== Fluent Pack 2 (Sentences 56–105) =====
+{ id:"s56", en:"I am at home.", ta_meaning:"நான் வீட்டில் இருக்கிறேன்.", ta_sound:"ஐ ஆம் அட் ஹோம்." },
+{ id:"s57", en:"He is my friend.", ta_meaning:"அவன் என் நண்பன்.", ta_sound:"ஹீ இஸ் மை ஃப்ரெண்ட்." },
+{ id:"s58", en:"She is my sister.", ta_meaning:"அவள் என் அக்கா/தங்கை.", ta_sound:"ஷீ இஸ் மை சிஸ்டர்." },
+{ id:"s59", en:"My father is working.", ta_meaning:"என் அப்பா வேலை செய்கிறார்.", ta_sound:"மை ஃபாதர் இஸ் வர்க்கிங்." },
+{ id:"s60", en:"My mother is cooking.", ta_meaning:"என் அம்மா சமைக்கிறார்.", ta_sound:"மை மதர் இஸ் குக்கிங்." },
+
+{ id:"s61", en:"The child is sleeping.", ta_meaning:"குழந்தை தூங்குகிறது.", ta_sound:"த சைல்ட் இஸ் ஸ்லீப்பிங்." },
+{ id:"s62", en:"I want to learn.", ta_meaning:"நான் கற்றுக்கொள்ள வேண்டும்.", ta_sound:"ஐ வான்ட் டு லெர்ன்." },
+{ id:"s63", en:"I need more practice.", ta_meaning:"எனக்கு மேலும் பயிற்சி தேவை.", ta_sound:"ஐ நீட் மோர் ப்ராக்டிஸ்." },
+{ id:"s64", en:"This lesson is easy.", ta_meaning:"இந்த பாடம் எளிது.", ta_sound:"திஸ் லெசன் இஸ் ஈஸி." },
+{ id:"s65", en:"This lesson is hard.", ta_meaning:"இந்த பாடம் கடினம்.", ta_sound:"திஸ் லெசன் இஸ் ஹார்ட்." },
+
+{ id:"s66", en:"I understand now.", ta_meaning:"இப்போது எனக்கு புரிகிறது.", ta_sound:"ஐ அண்டர்ஸ்டாண்ட் நவ்." },
+{ id:"s67", en:"I don't know.", ta_meaning:"எனக்கு தெரியாது.", ta_sound:"ஐ டோன்ட் நோ." },
+{ id:"s68", en:"I know this word.", ta_meaning:"இந்த வார்த்தை எனக்கு தெரியும்.", ta_sound:"ஐ நோ திஸ் வார்ட்." },
+{ id:"s69", en:"Please repeat again.", ta_meaning:"தயவு செய்து மீண்டும் சொல்லுங்கள்.", ta_sound:"ப்ளீஸ் ரிபீட் அகெயின்." },
+{ id:"s70", en:"Speak clearly, please.", ta_meaning:"தெளிவாக பேசுங்கள்.", ta_sound:"ஸ்பீக் கிளியர்லி ப்ளீஸ்." },
+
+{ id:"s71", en:"Be quiet.", ta_meaning:"அமைதியாக இரு.", ta_sound:"பீ க்வயட்." },
+{ id:"s72", en:"Don't make noise.", ta_meaning:"சத்தம் செய்யாதே.", ta_sound:"டோன்ட் மேக் நாய்ஸ்." },
+{ id:"s73", en:"I am busy today.", ta_meaning:"நான் இன்று பிஸியாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் பிஸி டுடே." },
+{ id:"s74", en:"I am free now.", ta_meaning:"நான் இப்போது காலியாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ஃப்ரீ நவ்." },
+{ id:"s75", en:"Come early tomorrow.", ta_meaning:"நாளை முன்னதாக வா.", ta_sound:"கம் எர்லி டுமாரோ." },
+
+{ id:"s76", en:"Don't be late.", ta_meaning:"தாமதமாகாதே.", ta_sound:"டோன்ட் பீ லேட்." },
+{ id:"s77", en:"Are you ready?", ta_meaning:"நீ தயாரா?", ta_sound:"ஆர் யூ ரெடி?" },
+{ id:"s78", en:"I am ready now.", ta_meaning:"நான் இப்போது தயாராக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ரெடி நவ்." },
+{ id:"s79", en:"Maybe later.", ta_meaning:"பிறகு இருக்கலாம்.", ta_sound:"மேபி லேட்டர்." },
+{ id:"s80", en:"I am sure.", ta_meaning:"நிச்சயம்.", ta_sound:"ஐ ஆம் ஷூர்." },
+
+{ id:"s81", en:"Always tell the truth.", ta_meaning:"எப்போதும் உண்மை சொல்.", ta_sound:"ஆல்வேஸ் டெல் த ட்ரூத்." },
+{ id:"s82", en:"Never give up.", ta_meaning:"ஒருபோதும் கைவிடாதே.", ta_sound:"நெவர் கிவ் அப்." },
+{ id:"s83", en:"I will try again.", ta_meaning:"நான் மீண்டும் முயற்சி செய்கிறேன்.", ta_sound:"ஐ வில் ட்ரை அகெயின்." },
+{ id:"s84", en:"Finish your work.", ta_meaning:"உன் வேலையை முடி.", ta_sound:"ஃபினிஷ் யோர் வர்க்." },
+{ id:"s85", en:"Begin the lesson.", ta_meaning:"பாடத்தை தொடங்கு.", ta_sound:"பிகின் த லெசன்." },
+
+{ id:"s86", en:"Press the button.", ta_meaning:"பட்டனை அழுத்து.", ta_sound:"ப்ரெஸ் த பட்டன்." },
+{ id:"s87", en:"Click here.", ta_meaning:"இங்கே கிளிக் செய்.", ta_sound:"க்ளிக் ஹியர்." },
+{ id:"s88", en:"Open the website.", ta_meaning:"வலைத்தளத்தை திற.", ta_sound:"ஓபன் த வெப்சைட்." },
+{ id:"s89", en:"Close the website.", ta_meaning:"வலைத்தளத்தை மூடு.", ta_sound:"க்ளோஸ் த வெப்சைட்." },
+{ id:"s90", en:"Remember the password.", ta_meaning:"கடவுச்சொல்லை நினைவில் வை.", ta_sound:"ரிமெம்பர் த பாஸ்வேர்ட்." },
+
+{ id:"s91", en:"Login now.", ta_meaning:"இப்போ உள்நுழை.", ta_sound:"லாகின் நவ்." },
+{ id:"s92", en:"Logout later.", ta_meaning:"பிறகு வெளியேறு.", ta_sound:"லாக்அவுட் லேட்டர்." },
+{ id:"s93", en:"I use mobile.", ta_meaning:"நான் மொபைல் பயன்படுத்துகிறேன்.", ta_sound:"ஐ யூஸ் மொபைல்." },
+{ id:"s94", en:"Internet is fast.", ta_meaning:"இணையம் வேகமாக உள்ளது.", ta_sound:"இன்டர்நெட் இஸ் ஃபாஸ்ட்." },
+{ id:"s95", en:"My computer is slow.", ta_meaning:"என் கம்ப்யூட்டர் மெதுவாக உள்ளது.", ta_sound:"மை கம்ப்யூட்டர் இஸ் ஸ்லோ." },
+
+{ id:"s96", en:"What is the price?", ta_meaning:"விலை என்ன?", ta_sound:"வாட் இஸ் த ப்ரைஸ்?" },
+{ id:"s97", en:"This is cheap.", ta_meaning:"இது குறைந்த விலை.", ta_sound:"திஸ் இஸ் சீப்." },
+{ id:"s98", en:"This is costly.", ta_meaning:"இது அதிக விலை.", ta_sound:"திஸ் இஸ் காஸ்ட்லி." },
+{ id:"s99", en:"Buy this one.", ta_meaning:"இதையே வாங்கு.", ta_sound:"பை திஸ் வன்." },
+{ id:"s100", en:"Sell the old phone.", ta_meaning:"பழைய போனை விற்று.", ta_sound:"செல் த ஓல்ட் ஃபோன்." },
+
+{ id:"s101", en:"Pay now.", ta_meaning:"இப்போ பணம் செலுத்து.", ta_sound:"பே நவ்." },
+{ id:"s102", en:"I go to office.", ta_meaning:"நான் அலுவலகத்திற்கு போவேன்.", ta_sound:"ஐ கோ டு ஆஃபிஸ்." },
+{ id:"s103", en:"I come back soon.", ta_meaning:"நான் சீக்கிரம் திரும்பி வருவேன்.", ta_sound:"ஐ கம் பேக் சூன்." },
+{ id:"s104", en:"Answer the question.", ta_meaning:"கேள்விக்கு பதில் சொல்.", ta_sound:"ஆன்சர் த க்வெஸ்சன்." },
+{ id:"s105", en:"Your answer is correct.", ta_meaning:"உன் பதில் சரி.", ta_sound:"யோர் ஆன்சர் இஸ் கரெக்ட்." },
+// ===== Fluent Pack 3 (Sentences 106–155) =====
+{ id:"s106", en:"Eat your food.", ta_meaning:"உன் உணவை சாப்பிடு.", ta_sound:"ஈட் யோர் ஃபூட்." },
+{ id:"s107", en:"Drink water now.", ta_meaning:"இப்போ தண்ணீர் குடி.", ta_sound:"ட்ரிங்க் வாட்டர் நவ்." },
+{ id:"s108", en:"Sleep early today.", ta_meaning:"இன்று முன்னதாக தூங்கு.", ta_sound:"ஸ்லீப் எர்லி டுடே." },
+{ id:"s109", en:"Wake up now.", ta_meaning:"இப்போ எழுந்திரு.", ta_sound:"வேக் அப் நவ்." },
+{ id:"s110", en:"Walk slowly.", ta_meaning:"மெதுவாக நட.", ta_sound:"வாக் ஸ்லோலி." },
+
+{ id:"s111", en:"Run fast.", ta_meaning:"வேகமாக ஓடு.", ta_sound:"ரன் ஃபாஸ்ட்." },
+{ id:"s112", en:"Jump now.", ta_meaning:"இப்போ தாவு.", ta_sound:"ஜம்ப் நவ்." },
+{ id:"s113", en:"Children play outside.", ta_meaning:"குழந்தைகள் வெளியே விளையாடுகிறார்கள்.", ta_sound:"சில்ட்ரன் ப்ளே அவுட்சைட்." },
+{ id:"s114", en:"Study everyday.", ta_meaning:"தினமும் படி.", ta_sound:"ஸ்டடி எவ்ரிடே." },
+{ id:"s115", en:"Learn English daily.", ta_meaning:"தினமும் ஆங்கிலம் கற்று.", ta_sound:"லெர்ன் இங்கிலிஷ் டெய்லி." },
+
+{ id:"s116", en:"Teach me slowly.", ta_meaning:"மெதுவாக கற்பிக்கவும்.", ta_sound:"டீச் மீ ஸ்லோலி." },
+{ id:"s117", en:"Read this word.", ta_meaning:"இந்த வார்த்தையை படி.", ta_sound:"ரீட் திஸ் வர்ட்." },
+{ id:"s118", en:"Write this sentence.", ta_meaning:"இந்த வாக்கியத்தை எழுது.", ta_sound:"ரைட் திஸ் சென்டன்ஸ்." },
+{ id:"s119", en:"Speak in English.", ta_meaning:"ஆங்கிலத்தில் பேசு.", ta_sound:"ஸ்பீக் இன் இங்கிலிஷ்." },
+{ id:"s120", en:"Listen carefully.", ta_meaning:"கவனமாக கேள்.", ta_sound:"லிஸன் கேர் ஃபுல்லி." },
+
+{ id:"s121", en:"Look at me.", ta_meaning:"என்னை பார்.", ta_sound:"லுக் அட் மீ." },
+{ id:"s122", en:"Watch TV now.", ta_meaning:"இப்போ டிவி பார்.", ta_sound:"வாட்ச் டிவி நவ்." },
+{ id:"s123", en:"Talk to me.", ta_meaning:"என்னிடம் பேசு.", ta_sound:"டாக் டு மீ." },
+{ id:"s124", en:"Say hello.", ta_meaning:"ஹலோ சொல்லு.", ta_sound:"சே ஹலோ." },
+{ id:"s125", en:"Tell me the truth.", ta_meaning:"எனக்கு உண்மை சொல்லு.", ta_sound:"டெல் மீ த ட்ரூத்." },
+
+{ id:"s126", en:"Ask a question.", ta_meaning:"ஒரு கேள்வி கேள்.", ta_sound:"ஆஸ்க் அ க்வெஸ்சன்." },
+{ id:"s127", en:"Answer me now.", ta_meaning:"இப்போ எனக்கு பதில் சொல்.", ta_sound:"ஆன்சர் மீ நவ்." },
+{ id:"s128", en:"Call me now.", ta_meaning:"இப்போ என்னை கால் செய்.", ta_sound:"கால் மீ நவ்." },
+{ id:"s129", en:"Send a message.", ta_meaning:"ஒரு மெசேஜ் அனுப்பு.", ta_sound:"செண்ட் அ மெசேஜ்." },
+{ id:"s130", en:"Reply me soon.", ta_meaning:"சீக்கிரம் பதில் அனுப்பு.", ta_sound:"ரிப்ளை மீ சூன்." },
+
+{ id:"s131", en:"Say it again.", ta_meaning:"மீண்டும் சொல்லு.", ta_sound:"சே இட் அகெயின்." },
+{ id:"s132", en:"Thank you so much.", ta_meaning:"மிகவும் நன்றி.", ta_sound:"தேங்க் யூ சோ மச்." },
+{ id:"s133", en:"Sorry, I am late.", ta_meaning:"மன்னிக்கவும், நான் தாமதம்.", ta_sound:"சாரி ஐ ஆம் லேட்." },
+{ id:"s134", en:"Welcome to my home.", ta_meaning:"என் வீட்டுக்கு வரவேற்கிறேன்.", ta_sound:"வெல்கம் டு மை ஹோம்." },
+{ id:"s135", en:"Good night, sleep well.", ta_meaning:"இனிய இரவு, நன்றாக தூங்கு.", ta_sound:"குட் நைட் ஸ்லீப் வெல்." },
+
+{ id:"s136", en:"I want to improve.", ta_meaning:"நான் மேம்படுத்த வேண்டும்.", ta_sound:"ஐ வான்ட் டு இம்ப்ரூவ்." },
+{ id:"s137", en:"Practice makes perfect.", ta_meaning:"பயிற்சி தான் முழுமை தரும்.", ta_sound:"ப்ராக்டிஸ் மேக்ஸ் பர்ஃபெக்ட்." },
+{ id:"s138", en:"Speak slowly and clearly.", ta_meaning:"மெதுவாகவும் தெளிவாகவும் பேசு.", ta_sound:"ஸ்பீக் ஸ்லோலி அண்ட் கிளியர்லி." },
+{ id:"s139", en:"English is simple.", ta_meaning:"ஆங்கிலம் எளிது.", ta_sound:"இங்கிலிஷ் இஸ் சிம்பிள்." },
+{ id:"s140", en:"Tamil helps me.", ta_meaning:"தமிழ் எனக்கு உதவுகிறது.", ta_sound:"தமிழ் ஹெல்ப்ஸ் மீ." },
+
+{ id:"s141", en:"What is this?", ta_meaning:"இது என்ன?", ta_sound:"வாட் இஸ் திஸ்?" },
+{ id:"s142", en:"Where are you?", ta_meaning:"நீ எங்கே இருக்கிறாய்?", ta_sound:"வேர் ஆர் யூ?" },
+{ id:"s143", en:"When will you come?", ta_meaning:"நீ எப்போது வருவாய்?", ta_sound:"வென் வில் யூ கம்?" },
+{ id:"s144", en:"Why are you sad?", ta_meaning:"நீ ஏன் சோகமாக இருக்கிறாய்?", ta_sound:"வை ஆர் யூ சேட்?" },
+{ id:"s145", en:"Who is he?", ta_meaning:"அவன் யார்?", ta_sound:"ஹூ இஸ் ஹீ?" },
+
+{ id:"s146", en:"Which one do you want?", ta_meaning:"எதை நீ வேண்டும்?", ta_sound:"விச் வன் டு யூ வான்ட்?" },
+{ id:"s147", en:"I want this one.", ta_meaning:"எனக்கு இதுதான் வேண்டும்.", ta_sound:"ஐ வான்ட் திஸ் வன்." },
+{ id:"s148", en:"I don't want that.", ta_meaning:"எனக்கு அது வேண்டாம்.", ta_sound:"ஐ டோன்ட் வான்ட் தாட்." },
+{ id:"s149", en:"This is my first lesson.", ta_meaning:"இது என் முதல் பாடம்.", ta_sound:"திஸ் இஸ் மை ஃபர்ஸ்ட் லெசன்." },
+{ id:"s150", en:"This is the last page.", ta_meaning:"இது கடைசி பக்கம்.", ta_sound:"திஸ் இஸ் த லாஸ்ட் பேஜ்." },
+
+{ id:"s151", en:"Next page, please.", ta_meaning:"அடுத்த பக்கம் தயவு செய்து.", ta_sound:"நெக்ஸ்ட் பேஜ் ப்ளீஸ்." },
+{ id:"s152", en:"I will learn English.", ta_meaning:"நான் ஆங்கிலம் கற்றுக்கொள்வேன்.", ta_sound:"ஐ வில் லெர்ன் இங்கிலிஷ்." },
+{ id:"s153", en:"I will speak English.", ta_meaning:"நான் ஆங்கிலம் பேசுவேன்.", ta_sound:"ஐ வில் ஸ்பீக் இங்கிலிஷ்." },
+{ id:"s154", en:"I will read English.", ta_meaning:"நான் ஆங்கிலம் படிப்பேன்.", ta_sound:"ஐ வில் ரீட் இங்கிலிஷ்." },
+{ id:"s155", en:"I will write English.", ta_meaning:"நான் ஆங்கிலம் எழுதுவேன்.", ta_sound:"ஐ வில் ரைட் இங்கிலிஷ்." },
+// ===== Fluent Pack 4 (Sentences 156–205) =====
+{ id:"s156", en:"This knife is sharp.", ta_meaning:"இந்த கத்தி கூர்மையாக உள்ளது.", ta_sound:"திஸ் நைஃப் இஸ் ஷார்ப்." },
+{ id:"s157", en:"I know you.", ta_meaning:"நான் உன்னை அறிவேன்.", ta_sound:"ஐ நோ யூ." },
+{ id:"s158", en:"My knee hurts.", ta_meaning:"என் முட்டி வலிக்கிறது.", ta_sound:"மை நீ ஹர்ட்ஸ்." },
+{ id:"s159", en:"Write your name.", ta_meaning:"உன் பெயரை எழுது.", ta_sound:"ரைட் யோர் நேம்." },
+{ id:"s160", en:"This is wrong.", ta_meaning:"இது தவறு.", ta_sound:"திஸ் இஸ் ராங்." },
+
+{ id:"s161", en:"Wrap the gift.", ta_meaning:"பரிசை சுற்றி மூடு.", ta_sound:"ரேப் த கிஃப்ட்." },
+{ id:"s162", en:"Use a comb.", ta_meaning:"சீப்பு பயன்படுத்து.", ta_sound:"யூஸ் அ கோம்." },
+{ id:"s163", en:"My thumb is okay.", ta_meaning:"என் பெருவிரல் சரி.", ta_sound:"மை தம் இஸ் ஓகே." },
+{ id:"s164", en:"Climb slowly.", ta_meaning:"மெதுவாக ஏறு.", ta_sound:"க்ளைம் ஸ்லோலி." },
+{ id:"s165", en:"Turn on the light.", ta_meaning:"லைட்டை ஆன் செய்.", ta_sound:"டர்ன் ஆன் த லைட்." },
+
+{ id:"s166", en:"Good night.", ta_meaning:"இனிய இரவு.", ta_sound:"குட் நைட்." },
+{ id:"s167", en:"You are right.", ta_meaning:"நீ சரி.", ta_sound:"யூ ஆர் ரைட்." },
+{ id:"s168", en:"I have eight books.", ta_meaning:"எனக்கு எட்டு புத்தகங்கள் உள்ளன.", ta_sound:"ஐ ஹேவ் எய்ட் புக்க்ஸ்." },
+{ id:"s169", en:"Laugh loudly.", ta_meaning:"சத்தமாக சிரி.", ta_sound:"லாஃப் லவுட்லி." },
+{ id:"s170", en:"My daughter is smart.", ta_meaning:"என் மகள் புத்திசாலி.", ta_sound:"மை டாட்டர் இஸ் ஸ்மார்ட்." },
+
+{ id:"s171", en:"Good thought.", ta_meaning:"நல்ல எண்ணம்.", ta_sound:"குட் தாட்." },
+{ id:"s172", en:"My phone is new.", ta_meaning:"என் போன் புதியது.", ta_sound:"மை ஃபோன் இஸ் நியூ." },
+{ id:"s173", en:"Take a photo.", ta_meaning:"ஒரு புகைப்படம் எடு.", ta_sound:"டேக் அ ஃபோட்டோ." },
+{ id:"s174", en:"Elephant is big.", ta_meaning:"யானை பெரியது.", ta_sound:"எலிஃபண்ட் இஸ் பிக்." },
+{ id:"s175", en:"I go to school.", ta_meaning:"நான் பள்ளிக்கு போகிறேன்.", ta_sound:"ஐ கோ டு ஸ்கூல்." },
+
+{ id:"s176", en:"Sit on the chair.", ta_meaning:"நாற்காலியில் உட்கார்.", ta_sound:"சிட் ஆன் த சேர்." },
+{ id:"s177", en:"Go to the shop.", ta_meaning:"கடைக்கு போ.", ta_sound:"கோ டு த ஷாப்." },
+{ id:"s178", en:"Fish is tasty.", ta_meaning:"மீன் ருசியாக உள்ளது.", ta_sound:"ஃபிஷ் இஸ் டேஸ்டி." },
+{ id:"s179", en:"Wash the dish.", ta_meaning:"தட்டையை கழுவு.", ta_sound:"வாஷ் த டிஷ்." },
+{ id:"s180", en:"Brush your teeth.", ta_meaning:"பற்களை துலக்கு.", ta_sound:"ப்ரஷ் யோர் டீத்." },
+
+{ id:"s181", en:"Catch the ball.", ta_meaning:"பந்தை பிடி.", ta_sound:"கேச் த பால்." },
+{ id:"s182", en:"We won the match.", ta_meaning:"நாம் போட்டியில் ஜெயித்தோம்.", ta_sound:"வி வன் த மேச்." },
+{ id:"s183", en:"Think before you speak.", ta_meaning:"பேசுவதற்கு முன் யோசி.", ta_sound:"திங் பிஃபோர் யூ ஸ்பீக்." },
+{ id:"s184", en:"I have three pens.", ta_meaning:"எனக்கு மூன்று பேன்கள் உள்ளன.", ta_sound:"ஐ ஹேவ் த்ரீ பென்ஸ்." },
+{ id:"s185", en:"My mother is kind.", ta_meaning:"என் அம்மா நல்லவர்.", ta_sound:"மை மதர் இஸ் கைண்ட்." },
+
+{ id:"s186", en:"My father works.", ta_meaning:"என் அப்பா வேலை செய்கிறார்.", ta_sound:"மை ஃபாதர் வர்க்ஸ்." },
+{ id:"s187", en:"My brother is tall.", ta_meaning:"என் அண்ணன் உயரம்.", ta_sound:"மை ப்ரதர் இஸ் டால்." },
+{ id:"s188", en:"The boy is here.", ta_meaning:"அந்த பையன் இங்கே இருக்கிறான்.", ta_sound:"த பாய் இஸ் ஹியர்." },
+{ id:"s189", en:"Go there.", ta_meaning:"அங்கே போ.", ta_sound:"கோ தேர்." },
+{ id:"s190", en:"Eat, then sleep.", ta_meaning:"சாப்பிட்டு அப்புறம் தூங்கு.", ta_sound:"ஈட் தென் ஸ்லீப்." },
+
+{ id:"s191", en:"He is thin.", ta_meaning:"அவன் மெலிந்தவன்.", ta_sound:"ஹீ இஸ் தின்." },
+{ id:"s192", en:"This book is thick.", ta_meaning:"இந்த புத்தகம் தடிமன்.", ta_sound:"திஸ் புக் இஸ் திக்." },
+{ id:"s193", en:"Call on phone.", ta_meaning:"போனில் கால் செய்.", ta_sound:"கால் ஆன் ஃபோன்." },
+{ id:"s194", en:"Check it.", ta_meaning:"அதை சரிபார்.", ta_sound:"செக் இட்." },
+{ id:"s195", en:"Come back.", ta_meaning:"திரும்பி வா.", ta_sound:"கம் பேக்." },
+
+{ id:"s196", en:"Take a break.", ta_meaning:"இடைவேளை எடு.", ta_sound:"டேக் அ ப்ரேக்." },
+{ id:"s197", en:"My head hurts.", ta_meaning:"என் தலை வலிக்கிறது.", ta_sound:"மை ஹெட் ஹர்ட்ஸ்." },
+{ id:"s198", en:"I can hear you.", ta_meaning:"நான் உன்னை கேட்க முடியும்.", ta_sound:"ஐ கேன் ஹியர் யூ." },
+{ id:"s199", en:"Don't fear.", ta_meaning:"பயப்படாதே.", ta_sound:"டோன்ட் ஃபியர்." },
+{ id:"s200", en:"Sit on the seat.", ta_meaning:"இருக்கையில் உட்கார்.", ta_sound:"சிட் ஆன் த சீட்." },
+
+{ id:"s201", en:"Great job.", ta_meaning:"மிகச் சிறந்த வேலை.", ta_sound:"க்ரேட் ஜாப்." },
+{ id:"s202", en:"Weather is good.", ta_meaning:"வானிலை நல்லது.", ta_sound:"வெதர் இஸ் குட்." },
+{ id:"s203", en:"My teacher helps me.", ta_meaning:"என் ஆசிரியர் உதவுகிறார்.", ta_sound:"மை டீச்சர் ஹெல்ப்ஸ் மீ." },
+{ id:"s204", en:"Go to kitchen.", ta_meaning:"சமையலறைக்கு போ.", ta_sound:"கோ டு கிச்சன்." },
+{ id:"s205", en:"Do you need anything?", ta_meaning:"உனக்கு எதாவது வேண்டுமா?", ta_sound:"டு யூ நீட் எனிதிங்?" },
+// ===== Fluent Pack 5 (Sentences 206–255) =====
+{ id:"s206", en:"I like cake.", ta_meaning:"எனக்கு கேக் பிடிக்கும்.", ta_sound:"ஐ லைக் கேக்." },
+{ id:"s207", en:"Make tea.", ta_meaning:"டீ செய்.", ta_sound:"மேக் டீ." },
+{ id:"s208", en:"My name is Ravi.", ta_meaning:"என் பெயர் ரவி.", ta_sound:"மை நேம் இஸ் ரவி." },
+{ id:"s209", en:"This game is fun.", ta_meaning:"இந்த விளையாட்டு வேடிக்கையாக உள்ளது.", ta_sound:"திஸ் கேம் இஸ் ஃபன்." },
+{ id:"s210", en:"I am late.", ta_meaning:"நான் தாமதம்.", ta_sound:"ஐ ஆம் லேட்." },
+
+{ id:"s211", en:"Open the gate.", ta_meaning:"வாசலை திற.", ta_sound:"ஓபன் த கேட்." },
+{ id:"s212", en:"What is the date?", ta_meaning:"இன்று தேதி என்ன?", ta_sound:"வாட் இஸ் த டேட்?" },
+{ id:"s213", en:"What time is it?", ta_meaning:"இப்போ நேரம் என்ன?", ta_sound:"வாட் டைம் இஸ் இட்?" },
+{ id:"s214", en:"I like you.", ta_meaning:"எனக்கு நீ பிடிக்கும்.", ta_sound:"ஐ லைக் யூ." },
+{ id:"s215", en:"My bike is new.", ta_meaning:"என் பைக் புதியது.", ta_sound:"மை பைக் இஸ் நியூ." },
+
+{ id:"s216", en:"I eat rice.", ta_meaning:"நான் அரிசி சாப்பிடுகிறேன்.", ta_sound:"ஐ ஈட் ரைஸ்." },
+{ id:"s217", en:"Nice to meet you.", ta_meaning:"உங்களை சந்தித்ததில் மகிழ்ச்சி.", ta_sound:"நைஸ் டு மீட் யூ." },
+{ id:"s218", en:"Wash your face.", ta_meaning:"முகத்தை கழுவு.", ta_sound:"வாஷ் யோர் ஃபேஸ்." },
+{ id:"s219", en:"This place is good.", ta_meaning:"இந்த இடம் நல்லது.", ta_sound:"திஸ் ப்ளேஸ் இஸ் குட்." },
+{ id:"s220", en:"Go home.", ta_meaning:"வீட்டுக்கு போ.", ta_sound:"கோ ஹோம்." },
+
+{ id:"s221", en:"I hope you win.", ta_meaning:"நீ ஜெயிப்பாய் என்று நம்புகிறேன்.", ta_sound:"ஐ ஹோப் யூ வின்." },
+{ id:"s222", en:"Write a note.", ta_meaning:"ஒரு குறிப்பு எழுது.", ta_sound:"ரைட் அ நோட்." },
+{ id:"s223", en:"This rose is red.", ta_meaning:"இந்த ரோஜா சிவப்பு.", ta_sound:"திஸ் ரோஸ் இஸ் ரெட்." },
+{ id:"s224", en:"Cute baby.", ta_meaning:"அழகான குழந்தை.", ta_sound:"க்யூட் பேபி." },
+{ id:"s225", en:"Use this.", ta_meaning:"இதை பயன்படுத்து.", ta_sound:"யூஸ் திஸ்." },
+
+{ id:"s226", en:"One apple.", ta_meaning:"ஒரு ஆப்பிள்.", ta_sound:"வன் ஆப்பிள்." },
+{ id:"s227", en:"Two pens.", ta_meaning:"இரண்டு பேன்கள்.", ta_sound:"டூ பென்ஸ்." },
+{ id:"s228", en:"Three books.", ta_meaning:"மூன்று புத்தகங்கள்.", ta_sound:"த்ரீ புக்க்ஸ்." },
+{ id:"s229", en:"This is my book.", ta_meaning:"இது என் புத்தகம்.", ta_sound:"திஸ் இஸ் மை புக்." },
+{ id:"s230", en:"Look here.", ta_meaning:"இங்கே பார்.", ta_sound:"லுக் ஹியர்." },
+
+{ id:"s231", en:"Cook rice.", ta_meaning:"அரிசி சமை.", ta_sound:"குக் ரைஸ்." },
+{ id:"s232", en:"Food is ready.", ta_meaning:"உணவு தயாராக உள்ளது.", ta_sound:"ஃபூட் இஸ் ரெடி." },
+{ id:"s233", en:"The moon is bright.", ta_meaning:"நிலா பிரகாசமாக உள்ளது.", ta_sound:"த மூன் இஸ் பிரைட்." },
+{ id:"s234", en:"Come soon.", ta_meaning:"சீக்கிரம் வா.", ta_sound:"கம் சூன்." },
+{ id:"s235", en:"This room is big.", ta_meaning:"இந்த அறை பெரியது.", ta_sound:"திஸ் ரூம் இஸ் பிக்." },
+
+{ id:"s236", en:"Cool weather.", ta_meaning:"குளிர்ந்த வானிலை.", ta_sound:"கூல் வெதர்." },
+{ id:"s237", en:"Rain is coming.", ta_meaning:"மழை வரப்போகிறது.", ta_sound:"ரெயின் இஸ் கமிங்." },
+{ id:"s238", en:"The train is late.", ta_meaning:"ரயில் தாமதம்.", ta_sound:"த ட்ரெயின் இஸ் லேட்." },
+{ id:"s239", en:"Main road.", ta_meaning:"முக்கிய சாலை.", ta_sound:"மேயின் ரோட்." },
+{ id:"s240", en:"I have pain.", ta_meaning:"எனக்கு வலி உள்ளது.", ta_sound:"ஐ ஹேவ் பெயின்." },
+
+{ id:"s241", en:"Stay here.", ta_meaning:"இங்கே தங்கு.", ta_sound:"ஸ்டே ஹியர்." },
+{ id:"s242", en:"May I come in?", ta_meaning:"நான் உள்ளே வரலாமா?", ta_sound:"மே ஐ கம் இன்?" },
+{ id:"s243", en:"Today is Sunday.", ta_meaning:"இன்று ஞாயிறு.", ta_sound:"டுடே இஸ் சண்டே." },
+{ id:"s244", en:"Boat is in water.", ta_meaning:"படகு தண்ணீரில் உள்ளது.", ta_sound:"போட் இஸ் இன் வாட்டர்." },
+{ id:"s245", en:"This road is long.", ta_meaning:"இந்த சாலை நீளமாக உள்ளது.", ta_sound:"திஸ் ரோட் இஸ் லாங்." },
+
+{ id:"s246", en:"Use soap.", ta_meaning:"சோப்பு பயன்படுத்து.", ta_sound:"யூஸ் சோப்." },
+{ id:"s247", en:"Go out.", ta_meaning:"வெளியே போ.", ta_sound:"கோ அவுட்." },
+{ id:"s248", en:"This is my house.", ta_meaning:"இது என் வீடு.", ta_sound:"திஸ் இஸ் மை ஹவுஸ்." },
+{ id:"s249", en:"Cloud is dark.", ta_meaning:"மேகம் கருமையாக உள்ளது.", ta_sound:"க்ளவுட் இஸ் டார்க்." },
+{ id:"s250", en:"Don't speak loud.", ta_meaning:"சத்தமாக பேசாதே.", ta_sound:"டோன்ட் ஸ்பீக் லவுட்." },
+
+{ id:"s251", en:"I need water.", ta_meaning:"எனக்கு தண்ணீர் வேண்டும்.", ta_sound:"ஐ நீட் வாட்டர்." },
+{ id:"s252", en:"Meet me tomorrow.", ta_meaning:"நாளை என்னை சந்தி.", ta_sound:"மீட் மீ டுமாரோ." },
+{ id:"s253", en:"Stay calm.", ta_meaning:"அமைதியாக இரு.", ta_sound:"ஸ்டே காம்." },
+{ id:"s254", en:"You should study.", ta_meaning:"நீ படிக்க வேண்டும்.", ta_sound:"யூ ஷுட் ஸ்டடி." },
+{ id:"s255", en:"See you tomorrow.", ta_meaning:"நாளை சந்திப்போம்.", ta_sound:"சீ யூ டுமாரோ." },
+// ===== Fluent Pack 6 (Sentences 256–305) =====
+{ id:"s256", en:"The cat is small.", ta_meaning:"பூனை சிறியது.", ta_sound:"த கேட் இஸ் ஸ்மால்." },
+{ id:"s257", en:"This hat is new.", ta_meaning:"இந்த தொப்பி புதியது.", ta_sound:"திஸ் ஹேட் இஸ் நியூ." },
+{ id:"s258", en:"Sit on the mat.", ta_meaning:"பாயில் உட்கார்.", ta_sound:"சிட் ஆன் த மேட்." },
+{ id:"s259", en:"My bag is heavy.", ta_meaning:"என் பை கனமாக உள்ளது.", ta_sound:"மை பேக் இஸ் ஹெவி." },
+{ id:"s260", en:"That man is kind.", ta_meaning:"அந்த மனிதர் நல்லவர்.", ta_sound:"தாட் மேன் இஸ் கைண்ட்." },
+
+{ id:"s261", en:"Turn on the fan.", ta_meaning:"விசிறியை ஆன் செய்.", ta_sound:"டர்ன் ஆன் த ஃபேன்." },
+{ id:"s262", en:"See the map.", ta_meaning:"வரைபடத்தை பார்.", ta_sound:"சீ த மேப்." },
+{ id:"s263", en:"Go to bed.", ta_meaning:"படுக்கைக்கு போ.", ta_sound:"கோ டு பெட்." },
+{ id:"s264", en:"This pen is mine.", ta_meaning:"இந்த பேனா என்னுடையது.", ta_sound:"திஸ் பென் இஸ் மைன்." },
+{ id:"s265", en:"Ten rupees.", ta_meaning:"பத்து ரூபாய்.", ta_sound:"டென் ரூபீஸ்." },
+
+{ id:"s266", en:"Get ready.", ta_meaning:"தயார் ஆகு.", ta_sound:"கெட் ரெடி." },
+{ id:"s267", en:"Set the time.", ta_meaning:"நேரத்தை செட் செய்.", ta_sound:"செட் த டைம்." },
+{ id:"s268", en:"Let me go.", ta_meaning:"என்னை போக விடு.", ta_sound:"லெட் மீ கோ." },
+{ id:"s269", en:"Next lesson.", ta_meaning:"அடுத்த பாடம்.", ta_sound:"நெக்ஸ்ட் லெசன்." },
+{ id:"s270", en:"Sit here.", ta_meaning:"இங்கே உட்கார்.", ta_sound:"சிட் ஹியர்." },
+
+{ id:"s271", en:"I will win.", ta_meaning:"நான் ஜெயிப்பேன்.", ta_sound:"ஐ வில் வின்." },
+{ id:"s272", en:"Tea is hot.", ta_meaning:"டீ சூடு.", ta_sound:"டீ இஸ் ஹாட்." },
+{ id:"s273", en:"Open the box.", ta_meaning:"பெட்டியை திற.", ta_sound:"ஓபன் த பாக்ஸ்." },
+{ id:"s274", en:"Dog is friendly.", ta_meaning:"நாய் நண்பன்.", ta_sound:"டாக் இஸ் ஃப்ரெண்ட்லி." },
+{ id:"s275", en:"Stop now.", ta_meaning:"இப்போ நிறுத்து.", ta_sound:"ஸ்டாப் நவ்." },
+
+{ id:"s276", en:"Don't drop it.", ta_meaning:"அதை கீழே விடாதே.", ta_sound:"டோன்ட் ட்ராப் இட்." },
+{ id:"s277", en:"I am from India.", ta_meaning:"நான் இந்தியாவிலிருந்து.", ta_sound:"ஐ ஆம் ஃப்ராம் இந்தியா." },
+{ id:"s278", en:"Come here.", ta_meaning:"இங்கே வா.", ta_sound:"கம் ஹியர்." },
+{ id:"s279", en:"The sun is hot.", ta_meaning:"சூரியன் சூடு.", ta_sound:"த சன் இஸ் ஹாட்." },
+{ id:"s280", en:"Bus is coming.", ta_meaning:"பஸ் வருகிறது.", ta_sound:"பஸ் இஸ் கமிங்." },
+
+{ id:"s281", en:"One cup of tea.", ta_meaning:"ஒரு கப் டீ.", ta_sound:"வன் கப் ஆஃப் டீ." },
+{ id:"s282", en:"Cut the paper.", ta_meaning:"காகிதத்தை வெட்டு.", ta_sound:"கட் த பேப்பர்." },
+{ id:"s283", en:"This is fun.", ta_meaning:"இது வேடிக்கை.", ta_sound:"திஸ் இஸ் ஃபன்." },
+{ id:"s284", en:"Run fast.", ta_meaning:"வேகமாக ஓடு.", ta_sound:"ரன் ஃபாஸ்ட்." },
+{ id:"s285", en:"Lunch is ready.", ta_meaning:"மதிய உணவு தயாராக உள்ளது.", ta_sound:"லன்ச் இஸ் ரெடி." },
+
+{ id:"s286", en:"Spell the word.", ta_meaning:"வார்த்தையை எழுத்துச் சொல்லு.", ta_sound:"ஸ்பெல் த வர்ட்." },
+{ id:"s287", en:"Try again.", ta_meaning:"மீண்டும் முயற்சி செய்.", ta_sound:"ட்ரை அகெயின்." },
+{ id:"s288", en:"Drive carefully.", ta_meaning:"கவனமாக ஓட்டு.", ta_sound:"ட்ரைவ் கேர் ஃபுல்லி." },
+{ id:"s289", en:"Blue color.", ta_meaning:"நீல நிறம்.", ta_sound:"ப்ளூ கலர்." },
+{ id:"s290", en:"Drink water.", ta_meaning:"தண்ணீர் குடி.", ta_sound:"ட்ரிங்க் வாட்டர்." },
+
+{ id:"s291", en:"Coffee is strong.", ta_meaning:"காபி ஸ்ட்ராங்.", ta_sound:"காஃபி இஸ் ஸ்ட்ராங்." },
+{ id:"s292", en:"Less sugar.", ta_meaning:"சர்க்கரை குறைவு.", ta_sound:"லெஸ் ஷுகர்." },
+{ id:"s293", en:"Add salt.", ta_meaning:"உப்பு போடு.", ta_sound:"ஆட் சால்ட்." },
+{ id:"s294", en:"Milk is good.", ta_meaning:"பால் நல்லது.", ta_sound:"மில்க் இஸ் குட்." },
+{ id:"s295", en:"Eat fruit.", ta_meaning:"பழம் சாப்பிடு.", ta_sound:"ஈட் ஃப்ரூட்." },
+
+{ id:"s296", en:"Apple is red.", ta_meaning:"ஆப்பிள் சிவப்பு.", ta_sound:"ஆப்பிள் இஸ் ரெட்." },
+{ id:"s297", en:"Banana is yellow.", ta_meaning:"வாழைப்பழம் மஞ்சள்.", ta_sound:"பனானா இஸ் யெல்லோ." },
+{ id:"s298", en:"Mango is sweet.", ta_meaning:"மாம்பழம் இனிப்பு.", ta_sound:"மேங்கோ இஸ் ஸ்வீட்." },
+{ id:"s299", en:"Cut onion.", ta_meaning:"வெங்காயம் வெட்டு.", ta_sound:"கட் அனியன்." },
+{ id:"s300", en:"Go to market.", ta_meaning:"சந்தைக்கு போ.", ta_sound:"கோ டு மார்கெட்." },
+
+{ id:"s301", en:"What is the price?", ta_meaning:"விலை என்ன?", ta_sound:"வாட் இஸ் த ப்ரைஸ்?" },
+{ id:"s302", en:"This is cheap.", ta_meaning:"இது மலிவு.", ta_sound:"திஸ் இஸ் சீப்." },
+{ id:"s303", en:"This is costly.", ta_meaning:"இது விலை அதிகம்.", ta_sound:"திஸ் இஸ் காஸ்ட்லி." },
+{ id:"s304", en:"Pay the bill.", ta_meaning:"பில் செலுத்து.", ta_sound:"பே த பில்." },
+{ id:"s305", en:"Give change.", ta_meaning:"சில்லறை கொடு.", ta_sound:"கிவ் சேஞ்ச்." },
+// ===== Fluent Pack 7 (Sentences 306–355) =====
+{ id:"s306", en:"Read this book.", ta_meaning:"இந்த புத்தகம் படி.", ta_sound:"ரீட் திஸ் புக்." },
+{ id:"s307", en:"Write your name.", ta_meaning:"உன் பெயரை எழுது.", ta_sound:"ரைட் யோர் நேம்." },
+{ id:"s308", en:"Speak in English.", ta_meaning:"ஆங்கிலத்தில் பேசு.", ta_sound:"ஸ்பீக் இன் இங்கிலிஷ்." },
+{ id:"s309", en:"Listen carefully.", ta_meaning:"கவனமாக கேள்.", ta_sound:"லிஸன் கேர் ஃபுல்லி." },
+{ id:"s310", en:"Learn daily.", ta_meaning:"தினமும் கற்று.", ta_sound:"லர்ன் டெய்லி." },
+
+{ id:"s311", en:"Teach me English.", ta_meaning:"எனக்கு ஆங்கிலம் கற்பி.", ta_sound:"டீச் மீ இங்கிலிஷ்." },
+{ id:"s312", en:"Study now.", ta_meaning:"இப்போ படி.", ta_sound:"ஸ்டடி நவ்." },
+{ id:"s313", en:"Practice speaking.", ta_meaning:"பேச பயிற்சி செய்.", ta_sound:"ப்ராக்டிஸ் ஸ்பீக்கிங்." },
+{ id:"s314", en:"Repeat after me.", ta_meaning:"என் பின்னால் மீண்டும் சொல்.", ta_sound:"ரிபீட் ஆஃப்டர் மீ." },
+{ id:"s315", en:"Open the door.", ta_meaning:"கதவை திற.", ta_sound:"ஓபன் த டோர்." },
+
+{ id:"s316", en:"Close the window.", ta_meaning:"ஜன்னலை மூடு.", ta_sound:"க்ளோஸ் த விண்டோ." },
+{ id:"s317", en:"Start the class.", ta_meaning:"வகுப்பை தொடங்கு.", ta_sound:"ஸ்டார்ட் த கிளாஸ்." },
+{ id:"s318", en:"Stop here.", ta_meaning:"இங்கே நிறுத்து.", ta_sound:"ஸ்டாப் ஹியர்." },
+{ id:"s319", en:"Come here.", ta_meaning:"இங்கே வா.", ta_sound:"கம் ஹியர்." },
+{ id:"s320", en:"Go now.", ta_meaning:"இப்போ போ.", ta_sound:"கோ நவ்." },
+
+{ id:"s321", en:"Walk slowly.", ta_meaning:"மெதுவாக நட.", ta_sound:"வாக் ஸ்லோலி." },
+{ id:"s322", en:"Run fast.", ta_meaning:"வேகமாக ஓடு.", ta_sound:"ரன் ஃபாஸ்ட்." },
+{ id:"s323", en:"Sit down.", ta_meaning:"உட்கார்.", ta_sound:"சிட் டவுன்." },
+{ id:"s324", en:"Stand here.", ta_meaning:"இங்கே நில்.", ta_sound:"ஸ்டேண்ட் ஹியர்." },
+{ id:"s325", en:"Please help me.", ta_meaning:"தயவு செய்து எனக்கு உதவி செய்.", ta_sound:"ப்ளீஸ் ஹெல்ப் மீ." },
+
+{ id:"s326", en:"Sorry, I am late.", ta_meaning:"மன்னிக்கவும், நான் தாமதம்.", ta_sound:"சாரி, ஐ ஆம் லேட்." },
+{ id:"s327", en:"Thanks a lot.", ta_meaning:"மிகவும் நன்றி.", ta_sound:"தேங்க்ஸ் அ லாட்." },
+{ id:"s328", en:"You are welcome.", ta_meaning:"வரவேற்கிறேன்.", ta_sound:"யூ ஆர் வெல்கம்." },
+{ id:"s329", en:"Excuse me.", ta_meaning:"மன்னிக்கவும்.", ta_sound:"எக்ஸ்க்யூஸ் மீ." },
+{ id:"s330", en:"Okay, let's go.", ta_meaning:"சரி, போகலாம்.", ta_sound:"ஓகே, லெட்ஸ் கோ." },
+
+{ id:"s331", en:"Good job.", ta_meaning:"நல்ல வேலை.", ta_sound:"குட் ஜாப்." },
+{ id:"s332", en:"Great work!", ta_meaning:"அருமையான வேலை!", ta_sound:"க்ரேட் வொர்க்!" },
+{ id:"s333", en:"My father is kind.", ta_meaning:"என் அப்பா நல்லவர்.", ta_sound:"மை ஃபாதர் இஸ் கைண்ட்." },
+{ id:"s334", en:"My mother cooks.", ta_meaning:"என் அம்மா சமைப்பார்.", ta_sound:"மை மதர் குக்ஸ்." },
+{ id:"s335", en:"My brother studies.", ta_meaning:"என் அண்ணன் படிக்கிறார்.", ta_sound:"மை ப்ரதர் ஸ்டடீஸ்." },
+
+{ id:"s336", en:"My sister sings.", ta_meaning:"என் அக்கா பாடுவார்.", ta_sound:"மை சிஸ்டர் சிங்ஸ்." },
+{ id:"s337", en:"He is my friend.", ta_meaning:"அவன் என் நண்பன்.", ta_sound:"ஹீ இஸ் மை ஃப்ரெண்ட்." },
+{ id:"s338", en:"I am a student.", ta_meaning:"நான் ஒரு மாணவர்.", ta_sound:"ஐ ஆம் அ ஸ்டூடெண்ட்." },
+{ id:"s339", en:"The child is happy.", ta_meaning:"குழந்தை மகிழ்ச்சி.", ta_sound:"த சைல்ட் இஸ் ஹாப்பி." },
+{ id:"s340", en:"That woman is kind.", ta_meaning:"அந்த பெண் நல்லவர்.", ta_sound:"தாட் வுமன் இஸ் கைண்ட்." },
+
+{ id:"s341", en:"Good morning.", ta_meaning:"காலை வணக்கம்.", ta_sound:"குட் மார்னிங்." },
+{ id:"s342", en:"Good night.", ta_meaning:"இரவு வணக்கம்.", ta_sound:"குட் நைட்." },
+{ id:"s343", en:"Do it now.", ta_meaning:"இப்போ செய்.", ta_sound:"டூ இட் நவ்." },
+{ id:"s344", en:"I will come later.", ta_meaning:"நான் பிறகு வருவேன்.", ta_sound:"ஐ வில் கம் லேட்டர்." },
+{ id:"s345", en:"Go to the shop.", ta_meaning:"கடைக்கு போ.", ta_sound:"கோ டு த ஷாப்." },
+
+{ id:"s346", en:"He goes to office.", ta_meaning:"அவன் அலுவலகம் போகிறான்.", ta_sound:"ஹீ கோஸ் டு ஆஃபிஸ்." },
+{ id:"s347", en:"Go to hospital.", ta_meaning:"மருத்துவமனைக்கு போ.", ta_sound:"கோ டு ஹாஸ்பிட்டல்." },
+{ id:"s348", en:"Call me on phone.", ta_meaning:"போனில் கால் செய்.", ta_sound:"கால் மீ ஆன் ஃபோன்." },
+{ id:"s349", en:"Send a message.", ta_meaning:"ஒரு மெசேஜ் அனுப்பு.", ta_sound:"செண்ட் அ மெசேஜ்." },
+{ id:"s350", en:"I have a problem.", ta_meaning:"எனக்கு ஒரு பிரச்சனை உள்ளது.", ta_sound:"ஐ ஹேவ் அ ப்ராப்ளம்." },
+
+{ id:"s351", en:"This is easy.", ta_meaning:"இது எளிது.", ta_sound:"திஸ் இஸ் ஈசி." },
+{ id:"s352", en:"This is hard.", ta_meaning:"இது கடினம்.", ta_sound:"திஸ் இஸ் ஹார்ட்." },
+{ id:"s353", en:"You are right.", ta_meaning:"நீ சரி.", ta_sound:"யூ ஆர் ரைட்." },
+{ id:"s354", en:"This is wrong.", ta_meaning:"இது தவறு.", ta_sound:"திஸ் இஸ் ராங்." },
+{ id:"s355", en:"Give the answer.", ta_meaning:"பதில் கொடு.", ta_sound:"கிவ் த ஆன்சர்." },
+// ===== Fluent Pack 8 (Sentences 356–405) =====
+{ id:"s356", en:"What is this?", ta_meaning:"இது என்ன?", ta_sound:"வாட் இஸ் திஸ்?" },
+{ id:"s357", en:"Why are you sad?", ta_meaning:"நீ ஏன் சோகமாக இருக்கிறாய்?", ta_sound:"வை ஆர் யூ சாட்?" },
+{ id:"s358", en:"Where is my phone?", ta_meaning:"என் போன் எங்கே?", ta_sound:"வேர் இஸ் மை ஃபோன்?" },
+{ id:"s359", en:"When will you come?", ta_meaning:"நீ எப்போது வருவாய்?", ta_sound:"வென் வில் யூ கம்?" },
+{ id:"s360", en:"Who is he?", ta_meaning:"அவன் யார்?", ta_sound:"ஹூ இஸ் ஹீ?" },
+
+{ id:"s361", en:"How are you?", ta_meaning:"நீ எப்படி இருக்கிறாய்?", ta_sound:"ஹவ் ஆர் யூ?" },
+{ id:"s362", en:"One apple.", ta_meaning:"ஒரு ஆப்பிள்.", ta_sound:"வன் ஆப்பிள்." },
+{ id:"s363", en:"Two books.", ta_meaning:"இரண்டு புத்தகங்கள்.", ta_sound:"டூ புக்க்ஸ்." },
+{ id:"s364", en:"Three pens.", ta_meaning:"மூன்று பேனாக்கள்.", ta_sound:"த்ரீ பென்ஸ்." },
+{ id:"s365", en:"Four chairs.", ta_meaning:"நான்கு நாற்காலிகள்.", ta_sound:"ஃபோர் சேர்ஸ்." },
+
+{ id:"s366", en:"Five minutes.", ta_meaning:"ஐந்து நிமிடம்.", ta_sound:"ஃபைவ் மினிட்ஸ்." },
+{ id:"s367", en:"Six cups.", ta_meaning:"ஆறு கப்புகள்.", ta_sound:"சிக்ஸ் கப்ஸ்." },
+{ id:"s368", en:"Seven days.", ta_meaning:"ஏழு நாட்கள்.", ta_sound:"செவன் டேஸ்." },
+{ id:"s369", en:"Eight hours.", ta_meaning:"எட்டு மணி.", ta_sound:"ஏட் ஆவர்ஸ்." },
+{ id:"s370", en:"Nine people.", ta_meaning:"ஒன்பது பேர்.", ta_sound:"நைன் பீப்புள்." },
+
+{ id:"s371", en:"Ten rupees.", ta_meaning:"பத்து ரூபாய்.", ta_sound:"டென் ரூபீஸ்." },
+{ id:"s372", en:"Small bag.", ta_meaning:"சிறிய பை.", ta_sound:"ஸ்மால் பேக்." },
+{ id:"s373", en:"Big house.", ta_meaning:"பெரிய வீடு.", ta_sound:"பிக் ஹவுஸ்." },
+{ id:"s374", en:"The road is long.", ta_meaning:"சாலை நீளம்.", ta_sound:"த ரோட் இஸ் லாங்." },
+{ id:"s375", en:"This phone is new.", ta_meaning:"இந்த போன் புதியது.", ta_sound:"திஸ் ஃபோன் இஸ் நியூ." },
+
+{ id:"s376", en:"That book is old.", ta_meaning:"அந்த புத்தகம் பழையது.", ta_sound:"தாட் புக் இஸ் ஓல்ட்." },
+{ id:"s377", en:"I am happy.", ta_meaning:"நான் மகிழ்ச்சி.", ta_sound:"ஐ ஆம் ஹாப்பி." },
+{ id:"s378", en:"He is sad.", ta_meaning:"அவன் சோகமாக இருக்கிறான்.", ta_sound:"ஹீ இஸ் சாட்." },
+{ id:"s379", en:"Good boy.", ta_meaning:"நல்ல பையன்.", ta_sound:"குட் பாய்." },
+{ id:"s380", en:"Bad habit.", ta_meaning:"மோசமான பழக்கம்.", ta_sound:"பேட் ஹேபிட்." },
+
+{ id:"s381", en:"Give me a pen.", ta_meaning:"எனக்கு பேனா கொடு.", ta_sound:"கிவ் மீ அ பென்." },
+{ id:"s382", en:"Table is clean.", ta_meaning:"மேசை சுத்தம்.", ta_sound:"டேபிள் இஸ் கிளீன்." },
+{ id:"s383", en:"Sit on the chair.", ta_meaning:"நாற்காலியில் உட்கார்.", ta_sound:"சிட் ஆன் த சேர்." },
+{ id:"s384", en:"Open the door.", ta_meaning:"கதவை திற.", ta_sound:"ஓபன் த டோர்." },
+{ id:"s385", en:"Close the window.", ta_meaning:"ஜன்னலை மூடு.", ta_sound:"க்ளோஸ் த விண்டோ." },
+
+{ id:"s386", en:"My room is big.", ta_meaning:"என் அறை பெரியது.", ta_sound:"மை ரூம் இஸ் பிக்." },
+{ id:"s387", en:"This house is new.", ta_meaning:"இந்த வீடு புதியது.", ta_sound:"திஸ் ஹவுஸ் இஸ் நியூ." },
+{ id:"s388", en:"Eat food.", ta_meaning:"உணவு சாப்பிடு.", ta_sound:"ஈட் ஃபூட்." },
+{ id:"s389", en:"Drink water.", ta_meaning:"தண்ணீர் குடி.", ta_sound:"ட்ரிங்க் வாட்டர்." },
+{ id:"s390", en:"Sleep early.", ta_meaning:"சீக்கிரம் தூங்கு.", ta_sound:"ஸ்லீப் எர்லி." },
+
+{ id:"s391", en:"Wake up now.", ta_meaning:"இப்போ எழுந்து.", ta_sound:"வேக் அப் நவ்." },
+{ id:"s392", en:"I work daily.", ta_meaning:"நான் தினமும் வேலை செய்கிறேன்.", ta_sound:"ஐ வொர்க் டெய்லி." },
+{ id:"s393", en:"Play with me.", ta_meaning:"என்னுடன் விளையாடு.", ta_sound:"ப்ளே வித் மீ." },
+{ id:"s394", en:"Watch TV.", ta_meaning:"டிவி பார்.", ta_sound:"வாட்ச் டிவி." },
+{ id:"s395", en:"Show me.", ta_meaning:"எனக்கு காட்டு.", ta_sound:"ஷோ மீ." },
+
+{ id:"s396", en:"I need water.", ta_meaning:"எனக்கு தண்ணீர் தேவை.", ta_sound:"ஐ நீட் வாட்டர்." },
+{ id:"s397", en:"I want tea.", ta_meaning:"எனக்கு டீ வேண்டும்.", ta_sound:"ஐ வாண்ட் டீ." },
+{ id:"s398", en:"I like it.", ta_meaning:"எனக்கு இது பிடிக்கும்.", ta_sound:"ஐ லைக் இட்." },
+{ id:"s399", en:"I love my family.", ta_meaning:"எனக்கு என் குடும்பம் பிடிக்கும்.", ta_sound:"ஐ லவ் மை ஃபாமிலி." },
+{ id:"s400", en:"I know this.", ta_meaning:"இது எனக்கு தெரியும்.", ta_sound:"ஐ நோ திஸ்." },
+
+{ id:"s401", en:"I think so.", ta_meaning:"நான் அப்படி நினைக்கிறேன்.", ta_sound:"ஐ திங்க் சோ." },
+{ id:"s402", en:"I feel good.", ta_meaning:"நான் நல்லா உணர்கிறேன்.", ta_sound:"ஐ ஃபீல் குட்." },
+{ id:"s403", en:"Wait here.", ta_meaning:"இங்கே காத்திரு.", ta_sound:"வேட் ஹியர்." },
+{ id:"s404", en:"Stay here.", ta_meaning:"இங்கே இரு.", ta_sound:"ஸ்டே ஹியர்." },
+{ id:"s405", en:"Take the quiz.", ta_meaning:"க்விஸ் செய்யுங்கள்.", ta_sound:"டேக் த க்விஸ்." },
+// ===== Fluent Pack 9 (Sentences 406–455) =====
+{ id:"s406", en:"I am ready.", ta_meaning:"நான் தயாராக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ரெடி." },
+{ id:"s407", en:"You are good.", ta_meaning:"நீ நல்லவன்.", ta_sound:"யூ ஆர் குட்." },
+{ id:"s408", en:"He is my friend.", ta_meaning:"அவன் என் நண்பன்.", ta_sound:"ஹீ இஸ் மை ஃப்ரெண்ட்." },
+{ id:"s409", en:"She is happy.", ta_meaning:"அவள் மகிழ்ச்சி.", ta_sound:"ஷீ இஸ் ஹாப்பி." },
+{ id:"s410", en:"We are students.", ta_meaning:"நாம் மாணவர்கள்.", ta_sound:"வீ ஆர் ஸ்டூடெண்ட்ஸ்." },
+
+{ id:"s411", en:"They are coming.", ta_meaning:"அவர்கள் வருகிறார்கள்.", ta_sound:"தே ஆர் கமிங்." },
+{ id:"s412", en:"I am fine.", ta_meaning:"நான் நலமாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ஃபைன்." },
+{ id:"s413", en:"He is good.", ta_meaning:"அவன் நல்லவன்.", ta_sound:"ஹீ இஸ் குட்." },
+{ id:"s414", en:"You are smart.", ta_meaning:"நீ புத்திசாலி.", ta_sound:"யூ ஆர் ஸ்மார்ட்." },
+{ id:"s415", en:"Do it now.", ta_meaning:"இப்போ செய்.", ta_sound:"டூ இட் நவ்." },
+
+{ id:"s416", en:"He does work.", ta_meaning:"அவன் வேலை செய்கிறான்.", ta_sound:"ஹீ டஸ் வொர்க்." },
+{ id:"s417", en:"I did it.", ta_meaning:"நான் அதை செய்தேன்.", ta_sound:"ஐ டிட் இட்." },
+{ id:"s418", en:"I can read.", ta_meaning:"நான் படிக்க முடியும்.", ta_sound:"ஐ கேன் ரீட்." },
+{ id:"s419", en:"I can't swim.", ta_meaning:"நான் நீந்த முடியாது.", ta_sound:"ஐ கேன்ட் ஸ்விம்." },
+{ id:"s420", en:"I will come.", ta_meaning:"நான் வருவேன்.", ta_sound:"ஐ வில் கம்." },
+
+{ id:"s421", en:"I won't go.", ta_meaning:"நான் போக மாட்டேன்.", ta_sound:"ஐ வோன்ட் கோ." },
+{ id:"s422", en:"Tea and coffee.", ta_meaning:"டீ மற்றும் காபி.", ta_sound:"டீ அண்ட் காஃபி." },
+{ id:"s423", en:"Tea or coffee?", ta_meaning:"டீ அல்லது காபி?", ta_sound:"டீ ஆர் காஃபி?" },
+{ id:"s424", en:"I was tired, so I slept.", ta_meaning:"நான் சோர்வாக இருந்தேன், அதனால் தூங்கினேன்.", ta_sound:"ஐ வாஸ் டயர்ட், சோ ஐ ஸ்லெப்ட்." },
+{ id:"s425", en:"Go to school.", ta_meaning:"பள்ளிக்கு போ.", ta_sound:"கோ டு ஸ்கூல்." },
+
+{ id:"s426", en:"From India.", ta_meaning:"இந்தியாவிலிருந்து.", ta_sound:"ஃப்ராம் இந்தியா." },
+{ id:"s427", en:"A book.", ta_meaning:"ஒரு புத்தகம்.", ta_sound:"அ புக்." },
+{ id:"s428", en:"An apple.", ta_meaning:"ஒரு ஆப்பிள்.", ta_sound:"அன் ஆப்பிள்." },
+{ id:"s429", en:"The book is here.", ta_meaning:"அந்த புத்தகம் இங்கே.", ta_sound:"த புக் இஸ் ஹியர்." },
+{ id:"s430", en:"I have a pen.", ta_meaning:"என்னிடம் பேனா உள்ளது.", ta_sound:"ஐ ஹேவ் அ பென்." },
+
+{ id:"s431", en:"He has a phone.", ta_meaning:"அவனிடம் போன் உள்ளது.", ta_sound:"ஹீ ஹாஸ் அ ஃபோன்." },
+{ id:"s432", en:"I had tea.", ta_meaning:"நான் டீ குடித்தேன்.", ta_sound:"ஐ ஹேட் டீ." },
+{ id:"s433", en:"Good morning!", ta_meaning:"காலை வணக்கம்!", ta_sound:"குட் மார்னிங்!" },
+{ id:"s434", en:"Good night!", ta_meaning:"இரவு வணக்கம்!", ta_sound:"குட் நைட்!" },
+{ id:"s435", en:"How are you?", ta_meaning:"நீ எப்படி இருக்கிறாய்?", ta_sound:"ஹவ் ஆர் யூ?" },
+
+{ id:"s436", en:"I am fine.", ta_meaning:"நான் நன்றாக இருக்கிறேன்.", ta_sound:"ஐ ஆம் ஃபைன்." },
+{ id:"s437", en:"My phone.", ta_meaning:"என் போன்.", ta_sound:"மை ஃபோன்." },
+{ id:"s438", en:"Your book.", ta_meaning:"உன் புத்தகம்.", ta_sound:"யோர் புக்." },
+{ id:"s439", en:"His bag.", ta_meaning:"அவனுடைய பை.", ta_sound:"ஹிஸ் பேக்." },
+{ id:"s440", en:"Her pen.", ta_meaning:"அவளுடைய பேனா.", ta_sound:"ஹர் பென்." },
+
+{ id:"s441", en:"Our home.", ta_meaning:"நமது வீடு.", ta_sound:"ஆவர் ஹோம்." },
+{ id:"s442", en:"Their school.", ta_meaning:"அவர்களின் பள்ளி.", ta_sound:"தேர் ஸ்கூல்." },
+{ id:"s443", en:"This is good.", ta_meaning:"இது நல்லது.", ta_sound:"திஸ் இஸ் குட்." },
+{ id:"s444", en:"That is bad.", ta_meaning:"அது மோசம்.", ta_sound:"தாட் இஸ் பேட்." },
+{ id:"s445", en:"These are books.", ta_meaning:"இவை புத்தகங்கள்.", ta_sound:"தீஸ் ஆர் புக்க்ஸ்." },
+
+{ id:"s446", en:"Those are pens.", ta_meaning:"அவை பேனாக்கள்.", ta_sound:"தோஸ் ஆர் பென்ஸ்." },
+{ id:"s447", en:"Come here.", ta_meaning:"இங்கே வா.", ta_sound:"கம் ஹியர்." },
+{ id:"s448", en:"Go there.", ta_meaning:"அங்கே போ.", ta_sound:"கோ தேர்." },
+{ id:"s449", en:"Eat then sleep.", ta_meaning:"சாப்பிட்டு பிறகு தூங்கு.", ta_sound:"ஈட் தென் ஸ்லீப்." },
+{ id:"s450", en:"Always smile.", ta_meaning:"எப்போதும் சிரி.", ta_sound:"ஆல்வேஸ் ஸ்மைல்." },
+
+{ id:"s451", en:"Never give up.", ta_meaning:"எப்போதும் விடாதே.", ta_sound:"நெவர் கிவ் அப்." },
+{ id:"s452", en:"Maybe later.", ta_meaning:"ஒருவேளை பிறகு.", ta_sound:"மேபி லேட்டர்." },
+{ id:"s453", en:"Sure, I will come.", ta_meaning:"நிச்சயம், நான் வருவேன்.", ta_sound:"ஷூர், ஐ வில் கம்." },
+{ id:"s454", en:"Buy a ticket.", ta_meaning:"டிக்கெட் வாங்கு.", ta_sound:"பை அ டிக்கெட்." },
+{ id:"s455", en:"Go to station.", ta_meaning:"ஸ்டேஷனுக்கு போ.", ta_sound:"கோ டு ஸ்டேஷன்." },
 // ===== Fluent Pack 10 (Sentences 456–505) =====
 { id:"s456", en:"Start now.", ta_meaning:"இப்போ தொடங்கு.", ta_sound:"ஸ்டார்ட் நவ்." },
 { id:"s457", en:"Stop here.", ta_meaning:"இங்கே நிறுத்து.", ta_sound:"ஸ்டாப் ஹியர்." },
@@ -9118,3 +8558,563 @@ init();
 { id:"s503", en:"I can write English.", ta_meaning:"நான் ஆங்கிலம் எழுத முடியும்.", ta_sound:"ஐ கேன் ரைட் இங்கிலிஷ்." },
 { id:"s504", en:"Speak slowly, please.", ta_meaning:"தயவு செய்து மெதுவாக பேசுங்கள்.", ta_sound:"ஸ்பீக் ஸ்லோலி ப்ளீஸ்." },
 { id:"s505", en:"Thank you very much.", ta_meaning:"மிக்க நன்றி.", ta_sound:"தேங்க் யூ வெரி மச்." },
+  ],
+};
+
+/* ---------- SETTINGS + PROGRESS ---------- */
+const SETTINGS_KEY = "tutu_settings_v1";
+const PROGRESS_KEY = "tutu_progress_v1";
+
+const settings = loadLS(SETTINGS_KEY, {
+  showMeaning: true,
+  showSound: true,
+  bigFont: false,
+  theme: "dark",
+});
+
+const progress = loadLS(PROGRESS_KEY, {
+  doneWords: {},
+  doneSent: {},
+  lastPage: "home",
+  lastWordIndex: 0,
+  lastSentIndex: 0,
+});
+
+/* ---------- UI NAV ---------- */
+const pages = ["home", "letters", "words", "sentences", "rules", "practice", "quiz", "progress", "settings"];
+
+function showPage(name) {
+  pages.forEach((p) => {
+    const el = $("page-" + p);
+    if (el) el.classList.remove("active");
+  });
+  const target = $("page-" + name);
+  if (target) target.classList.add("active");
+
+  document.querySelectorAll(".navBtn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.nav === name);
+  });
+
+  progress.lastPage = name;
+  saveLS(PROGRESS_KEY, progress);
+}
+
+/* ---------- THEME + SETTINGS APPLY ---------- */
+function applySettings() {
+  document.body.classList.toggle("light", settings.theme === "light");
+  document.body.classList.toggle("bigFont", !!settings.bigFont);
+
+  $("setMeaning").checked = !!settings.showMeaning;
+  $("setSound").checked = !!settings.showSound;
+  $("setBigFont").checked = !!settings.bigFont;
+}
+
+/* ---------- LETTERS RENDER ---------- */
+let lettersFilter = "All";
+
+function renderLettersChips() {
+  const chips = ["All", "Uyir (Vowels)", "Mei (Consonants)", "UyirMei (216 Letters)", "Grantha (Extra)"];
+  const wrap = $("lettersChips");
+  wrap.innerHTML = "";
+  chips.forEach((c) => {
+    const btn = document.createElement("button");
+    btn.className = "chip" + (lettersFilter === c ? " active" : "");
+    btn.textContent = c === "All" ? "All" : c.split(" ")[0];
+    btn.onclick = () => {
+      lettersFilter = c;
+      renderLettersChips();
+      renderLettersList();
+    };
+    wrap.appendChild(btn);
+  });
+}
+
+function renderLettersList() {
+  const q = $("lettersSearch").value.trim().toLowerCase();
+  const list = $("lettersList");
+  list.innerHTML = "";
+
+  let items = DATA.tamilLetters;
+
+  if (lettersFilter !== "All") {
+    items = items.filter((x) => x.group === lettersFilter);
+  }
+
+  if (q) {
+    items = items.filter((x) => (x.ta + " " + x.enSound + " " + x.taSound + " " + x.group).toLowerCase().includes(q));
+  }
+
+  items.slice(0, 400).forEach((x) => {
+    const card = document.createElement("div");
+    card.className = "item";
+    card.innerHTML = `
+      <div class="rowBetween">
+        <div>
+          <div class="bigText">${x.ta}</div>
+          <div class="smallText">${x.group}</div>
+        </div>
+        <div class="badge">${x.enSound}</div>
+      </div>
+      <div class="kv">
+        <div class="kvLine"><span class="kvKey">Tamil sound</span><span class="kvVal">${x.taSound}</span></div>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+/* ---------- WORDS RENDER (Pagination) ---------- */
+const WORDS_PAGE_SIZE = 20;
+let wordsPage = 0;
+
+function getWordsFiltered() {
+  const q = $("wordsSearch").value.trim().toLowerCase();
+  let items = DATA.words;
+
+  if (q) {
+    items = items.filter((w) => {
+      const blob = `${w.en} ${w.ta_meaning} ${w.ta_sound} ${w.rule} ${w.example_en} ${w.example_ta}`.toLowerCase();
+      return blob.includes(q);
+    });
+  }
+  return items;
+}
+
+function renderWords() {
+  const list = $("wordsList");
+  list.innerHTML = "";
+
+  const items = getWordsFiltered();
+  const start = wordsPage * WORDS_PAGE_SIZE;
+  const pageItems = items.slice(start, start + WORDS_PAGE_SIZE);
+
+  $("wordsPagerText").textContent = `Page ${wordsPage + 1} / ${Math.max(1, Math.ceil(items.length / WORDS_PAGE_SIZE))}`;
+
+  pageItems.forEach((w, idx) => {
+    const card = document.createElement("div");
+    card.className = "item";
+
+    const done = !!progress.doneWords[w.id];
+
+    const meaningHTML = settings.showMeaning ? `<div class="kvLine"><span class="kvKey">Meaning</span><span class="kvVal">${w.ta_meaning}</span></div>` : "";
+    const soundHTML = settings.showSound ? `<div class="kvLine"><span class="kvKey">Tamil sound</span><span class="kvVal">${w.ta_sound}</span></div>` : "";
+
+    const breakdownHTML = (w.breakdown && w.breakdown.length)
+      ? `<div class="breakdown">
+          ${w.breakdown.map(b => `<span class="pill">${b.part} → ${b.ta}</span>`).join("")}
+        </div>`
+      : "";
+
+    card.innerHTML = `
+      <div class="rowBetween">
+        <div>
+          <div class="bigText">${w.en}</div>
+          <div class="smallText">${done ? "✅ Completed" : "⬜ Not done"}</div>
+        </div>
+        <div class="badge">${w.rule || "Rule"}</div>
+      </div>
+
+      <div class="kv">
+        ${meaningHTML}
+        ${soundHTML}
+        <div class="kvLine"><span class="kvKey">Example</span><span class="kvVal">${w.example_en}</span></div>
+        <div class="kvLine"><span class="kvKey">Tamil</span><span class="kvVal">${w.example_ta}</span></div>
+        ${breakdownHTML}
+      </div>
+
+      <div class="actions">
+        <button class="actionBtn" data-act="listen">🔊 Listen</button>
+        <button class="actionBtn" data-act="done">${done ? "Undo" : "Mark Done"}</button>
+        <button class="actionBtn" data-act="quiz">🧪 Quiz</button>
+      </div>
+    `;
+
+    card.querySelector('[data-act="listen"]').onclick = () => speak(w.en, "en-US");
+    card.querySelector('[data-act="done"]').onclick = () => {
+      progress.doneWords[w.id] = !progress.doneWords[w.id];
+      saveLS(PROGRESS_KEY, progress);
+      renderProgress();
+      renderWords();
+    };
+    card.querySelector('[data-act="quiz"]').onclick = () => {
+      startQuiz("word", w);
+    };
+
+    list.appendChild(card);
+  });
+}
+
+/* ---------- SENTENCES RENDER (Pagination) ---------- */
+const SENT_PAGE_SIZE = 15;
+let sentPage = 0;
+
+function getSentFiltered() {
+  const q = $("sentSearch").value.trim().toLowerCase();
+  let items = DATA.sentences;
+  if (q) {
+    items = items.filter((s) => {
+      const blob = `${s.en} ${s.ta_meaning} ${s.ta_sound}`.toLowerCase();
+      return blob.includes(q);
+    });
+  }
+  return items;
+}
+
+function renderSentences() {
+  const list = $("sentList");
+  list.innerHTML = "";
+
+  const items = getSentFiltered();
+  const start = sentPage * SENT_PAGE_SIZE;
+  const pageItems = items.slice(start, start + SENT_PAGE_SIZE);
+
+  $("sentPagerText").textContent = `Page ${sentPage + 1} / ${Math.max(1, Math.ceil(items.length / SENT_PAGE_SIZE))}`;
+
+  pageItems.forEach((s) => {
+    const card = document.createElement("div");
+    card.className = "item";
+    const done = !!progress.doneSent[s.id];
+
+    const meaningHTML = settings.showMeaning ? `<div class="kvLine"><span class="kvKey">Meaning</span><span class="kvVal">${s.ta_meaning}</span></div>` : "";
+    const soundHTML = settings.showSound ? `<div class="kvLine"><span class="kvKey">Tamil sound</span><span class="kvVal">${s.ta_sound}</span></div>` : "";
+
+    card.innerHTML = `
+      <div class="rowBetween">
+        <div>
+          <div class="midText">${s.en}</div>
+          <div class="smallText">${done ? "✅ Completed" : "⬜ Not done"}</div>
+        </div>
+        <div class="badge">Sentence</div>
+      </div>
+
+      <div class="kv">
+        ${meaningHTML}
+        ${soundHTML}
+      </div>
+
+      <div class="actions">
+        <button class="actionBtn" data-act="listen">🔊 Listen</button>
+        <button class="actionBtn" data-act="done">${done ? "Undo" : "Mark Done"}</button>
+        <button class="actionBtn" data-act="quiz">🧪 Quiz</button>
+      </div>
+    `;
+
+    card.querySelector('[data-act="listen"]').onclick = () => speak(s.en, "en-US");
+    card.querySelector('[data-act="done"]').onclick = () => {
+      progress.doneSent[s.id] = !progress.doneSent[s.id];
+      saveLS(PROGRESS_KEY, progress);
+      renderProgress();
+      renderSentences();
+    };
+    card.querySelector('[data-act="quiz"]').onclick = () => {
+      startQuiz("sentence", s);
+    };
+
+    list.appendChild(card);
+  });
+}
+
+/* ---------- RULES RENDER ---------- */
+function renderRules() {
+  const list = $("rulesList");
+  list.innerHTML = "";
+
+  DATA.rules.forEach((r) => {
+    const card = document.createElement("div");
+    card.className = "item";
+    card.innerHTML = `
+      <div class="rowBetween">
+        <div>
+          <div class="midText">${r.title}</div>
+          <div class="smallText">Tamil teacher style rules</div>
+        </div>
+        <div class="badge">Rule</div>
+      </div>
+      <div class="kv">
+        ${r.points.map(p => `<div class="kvLine"><span class="kvKey">•</span><span class="kvVal">${p}</span></div>`).join("")}
+      </div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+/* ---------- PRACTICE (Speaking) ---------- */
+let practiceIndex = 0;
+
+function renderPractice() {
+  const s = DATA.sentences[practiceIndex % DATA.sentences.length] || DATA.sentences[0];
+  $("practiceEn").textContent = s.en;
+  $("practiceTa").textContent = settings.showMeaning ? s.ta_meaning : "";
+  $("practiceSound").textContent = settings.showSound ? s.ta_sound : "";
+  $("micText").textContent = "Mic result will show here...";
+}
+
+function startSpeechRecognition() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    $("micText").textContent = "❌ உங்கள் browser-ல் Mic support இல்லை. நீங்க சத்தமாக வாசித்து practice பண்ணுங்க 👍";
+    return;
+  }
+  const rec = new SpeechRecognition();
+  rec.lang = "en-US";
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+
+  $("micText").textContent = "🎧 Listening... பேசுங்க...";
+  rec.start();
+
+  rec.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    $("micText").textContent = "✅ You said: " + text;
+  };
+  rec.onerror = () => {
+    $("micText").textContent = "❌ Mic error. மீண்டும் முயற்சி செய்யுங்க.";
+  };
+}
+
+/* ---------- QUIZ SYSTEM ---------- */
+let quizState = {
+  type: "word",
+  item: null,
+  qIndex: 0,
+  score: 0,
+  total: 5,
+  currentCorrect: null,
+};
+
+function randInt(n) {
+  return Math.floor(Math.random() * n);
+}
+
+function pickRandom(arr, count) {
+  const copy = [...arr];
+  const out = [];
+  while (copy.length && out.length < count) {
+    out.push(copy.splice(randInt(copy.length), 1)[0]);
+  }
+  return out;
+}
+
+function startQuiz(type, item) {
+  quizState = { type, item, qIndex: 0, score: 0, total: 5, currentCorrect: null };
+  showPage("quiz");
+  renderQuizQuestion();
+}
+
+function renderQuizQuestion() {
+  const box = $("quizBox");
+  box.innerHTML = "";
+
+  const isWord = quizState.type === "word";
+  const item = quizState.item;
+
+  // Question types:
+  // 1) Meaning MCQ
+  // 2) Sound MCQ
+  // 3) Rule MCQ (word only)
+  const qType = isWord ? ["meaning", "sound", "rule"][quizState.qIndex % 3] : ["meaning", "sound"][quizState.qIndex % 2];
+
+  let question = "";
+  let options = [];
+  let correct = "";
+
+  if (qType === "meaning") {
+    question = `Q${quizState.qIndex + 1}: "${item.en}" meaning என்ன?`;
+    correct = item.ta_meaning;
+    const pool = (isWord ? DATA.words : DATA.sentences).map(x => x.ta_meaning);
+    options = pickRandom(pool.filter(x => x !== correct), 3);
+    options.push(correct);
+  }
+
+  if (qType === "sound") {
+    question = `Q${quizState.qIndex + 1}: "${item.en}" Tamil sound என்ன?`;
+    correct = item.ta_sound;
+    const pool = (isWord ? DATA.words : DATA.sentences).map(x => x.ta_sound);
+    options = pickRandom(pool.filter(x => x !== correct), 3);
+    options.push(correct);
+  }
+
+  if (qType === "rule") {
+    question = `Q${quizState.qIndex + 1}: "${item.en}" rule என்ன?`;
+    correct = item.rule || "Rule";
+    const pool = DATA.words.map(x => x.rule || "Rule");
+    options = pickRandom(pool.filter(x => x !== correct), 3);
+    options.push(correct);
+  }
+
+  options = options.sort(() => Math.random() - 0.5);
+  quizState.currentCorrect = correct;
+
+  box.innerHTML = `
+    <div class="quizQ">${question}</div>
+    <div class="quizOptions" id="quizOptions"></div>
+  `;
+
+  const optWrap = $("quizOptions");
+  options.forEach((opt) => {
+    const btn = document.createElement("button");
+    btn.className = "optBtn";
+    btn.textContent = opt;
+    btn.onclick = () => {
+      if (opt === quizState.currentCorrect) {
+        btn.classList.add("correct");
+        quizState.score += 1;
+      } else {
+        btn.classList.add("wrong");
+      }
+      // disable all
+      optWrap.querySelectorAll("button").forEach(b => b.disabled = true);
+      $("quizScore").textContent = `Score: ${quizState.score} / ${quizState.total}`;
+    };
+    optWrap.appendChild(btn);
+  });
+
+  $("quizScore").textContent = `Score: ${quizState.score} / ${quizState.total}`;
+}
+
+/* ---------- PROGRESS ---------- */
+function renderProgress() {
+  const doneW = Object.values(progress.doneWords).filter(Boolean).length;
+  const doneS = Object.values(progress.doneSent).filter(Boolean).length;
+
+  $("progWords").textContent = doneW;
+  $("progSent").textContent = doneS;
+
+  $("statWords").textContent = DATA.words.length;
+  $("statSentences").textContent = DATA.sentences.length;
+  $("statLetters").textContent = DATA.tamilLetters.length;
+}
+
+/* ---------- EVENTS ---------- */
+function initEvents() {
+  // bottom nav
+  document.querySelectorAll(".navBtn").forEach((btn) => {
+    btn.addEventListener("click", () => showPage(btn.dataset.nav));
+  });
+
+  // home cards
+  document.querySelectorAll("[data-nav]").forEach((btn) => {
+    btn.addEventListener("click", () => showPage(btn.dataset.nav));
+  });
+
+  $("btnStart").onclick = () => showPage("letters");
+  $("btnContinue").onclick = () => showPage(progress.lastPage || "home");
+
+  // theme
+  $("btnTheme").onclick = () => {
+    settings.theme = settings.theme === "dark" ? "light" : "dark";
+    saveLS(SETTINGS_KEY, settings);
+    applySettings();
+  };
+
+  // letters search
+  $("lettersSearch").addEventListener("input", renderLettersList);
+
+  // words search + pager
+  $("wordsSearch").addEventListener("input", () => {
+    wordsPage = 0;
+    renderWords();
+  });
+  $("btnWordsPrev").onclick = () => {
+    wordsPage = Math.max(0, wordsPage - 1);
+    renderWords();
+  };
+  $("btnWordsNext").onclick = () => {
+    const total = getWordsFiltered().length;
+    const maxPage = Math.max(0, Math.ceil(total / WORDS_PAGE_SIZE) - 1);
+    wordsPage = Math.min(maxPage, wordsPage + 1);
+    renderWords();
+  };
+
+  // sentences search + pager
+  $("sentSearch").addEventListener("input", () => {
+    sentPage = 0;
+    renderSentences();
+  });
+  $("btnSentPrev").onclick = () => {
+    sentPage = Math.max(0, sentPage - 1);
+    renderSentences();
+  };
+  $("btnSentNext").onclick = () => {
+    const total = getSentFiltered().length;
+    const maxPage = Math.max(0, Math.ceil(total / SENT_PAGE_SIZE) - 1);
+    sentPage = Math.min(maxPage, sentPage + 1);
+    renderSentences();
+  };
+
+  // practice
+  $("btnSpeakEnglish").onclick = () => speak($("practiceEn").textContent, "en-US");
+  $("btnNextPractice").onclick = () => {
+    practiceIndex += 1;
+    renderPractice();
+  };
+  $("btnMic").onclick = () => startSpeechRecognition();
+
+  // quiz buttons
+  $("btnQuizNext").onclick = () => {
+    quizState.qIndex += 1;
+    if (quizState.qIndex >= quizState.total) {
+      $("quizBox").innerHTML = `<div class="quizQ">🎉 Quiz Finished!</div><div class="smallText">Final Score: ${quizState.score} / ${quizState.total}</div>`;
+      return;
+    }
+    renderQuizQuestion();
+  };
+  $("btnQuizRestart").onclick = () => {
+    quizState.qIndex = 0;
+    quizState.score = 0;
+    renderQuizQuestion();
+  };
+
+  // settings toggles
+  $("setMeaning").onchange = (e) => {
+    settings.showMeaning = e.target.checked;
+    saveLS(SETTINGS_KEY, settings);
+    renderWords();
+    renderSentences();
+    renderPractice();
+  };
+  $("setSound").onchange = (e) => {
+    settings.showSound = e.target.checked;
+    saveLS(SETTINGS_KEY, settings);
+    renderWords();
+    renderSentences();
+    renderPractice();
+  };
+  $("setBigFont").onchange = (e) => {
+    settings.bigFont = e.target.checked;
+    saveLS(SETTINGS_KEY, settings);
+    applySettings();
+  };
+
+  // reset progress
+  $("btnReset").onclick = () => {
+    if (!confirm("Reset progress?")) return;
+    progress.doneWords = {};
+    progress.doneSent = {};
+    saveLS(PROGRESS_KEY, progress);
+    renderProgress();
+    renderWords();
+    renderSentences();
+  };
+}
+
+/* ---------- INIT ---------- */
+function init() {
+  applySettings();
+
+  renderProgress();
+  renderLettersChips();
+  renderLettersList();
+
+  renderRules();
+  renderWords();
+  renderSentences();
+  renderPractice();
+
+  initEvents();
+
+  // restore last page
+  showPage(progress.lastPage || "home");
+}
+
+init();
