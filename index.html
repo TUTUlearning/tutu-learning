@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ta">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TUTU • Learn English through Tamil</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">T</div>
+      <div class="brandText">
+        <div class="name">TUTU</div>
+        <div class="tag">English Reading • Tamil Teacher Mode</div>
+      </div>
+    </div>
+
+    <button class="iconBtn" id="btnTheme" title="Theme">
+      🌙
+    </button>
+  </header>
+
+  <!-- Main Pages -->
+  <main class="main">
+
+    <!-- HOME -->
+    <section class="page active" id="page-home">
+      <div class="heroCard">
+        <h1>வணக்கம் 👋</h1>
+        <p class="sub">
+          இங்கே நீங்க English-ஐ <b>தமிழ் மூலமாக</b> மெதுவாக, சரியாக படிக்கவும் பேசவும் கற்றுக்கொள்வீங்க.
+        </p>
+
+        <div class="ctaRow">
+          <button class="btnPrimary" id="btnStart">Start Learning</button>
+          <button class="btnGhost" id="btnContinue">Continue</button>
+        </div>
+
+        <div class="statsRow">
+          <div class="statBox">
+            <div class="statNum" id="statWords">0</div>
+            <div class="statLbl">Words</div>
+          </div>
+          <div class="statBox">
+            <div class="statNum" id="statSentences">0</div>
+            <div class="statLbl">Sentences</div>
+          </div>
+          <div class="statBox">
+            <div class="statNum" id="statLetters">0</div>
+            <div class="statLbl">Tamil Letters</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <button class="cardBtn" data-nav="letters">
+          <div class="cardTitle">Tamil Letters (Uyir/Mei/UyirMei)</div>
+          <div class="cardDesc">க, ங, ச… முழுக்க கற்றுக்கொள்ளலாம்</div>
+        </button>
+
+        <button class="cardBtn" data-nav="words">
+          <div class="cardTitle">Words (1000)</div>
+          <div class="cardDesc">Ball → பால் → பந்து</div>
+        </button>
+
+        <button class="cardBtn" data-nav="sentences">
+          <div class="cardTitle">Sentences (500)</div>
+          <div class="cardDesc">Daily பேசும் lines practice</div>
+        </button>
+
+        <button class="cardBtn" data-nav="rules">
+          <div class="cardTitle">Sound Rules</div>
+          <div class="cardDesc">knife = k silent போன்ற rules</div>
+        </button>
+      </div>
+    </section>
+
+    <!-- LETTERS -->
+    <section class="page" id="page-letters">
+      <div class="pageHead">
+        <h2>Tamil Letters</h2>
+        <p class="muted">Uyir + Mei + UyirMei + Extra (Grantha)</p>
+      </div>
+
+      <div class="searchRow">
+        <input id="lettersSearch" class="searchInput" placeholder="Search (எ.g. க, ங, ஜ, கா...)" />
+      </div>
+
+      <div class="chipsRow" id="lettersChips"></div>
+
+      <div class="list" id="lettersList"></div>
+    </section>
+
+    <!-- WORDS -->
+    <section class="page" id="page-words">
+      <div class="pageHead">
+        <h2>English Words</h2>
+        <p class="muted">தமிழில் உச்சரிப்பு + meaning + breakdown + rule</p>
+      </div>
+
+      <div class="searchRow">
+        <input id="wordsSearch" class="searchInput" placeholder="Search word (ball / பந்து / பால்)" />
+      </div>
+
+      <div class="list" id="wordsList"></div>
+      <div class="pagerRow">
+        <button class="btnGhost" id="btnWordsPrev">⬅ Prev</button>
+        <div class="pagerText" id="wordsPagerText">Page 1</div>
+        <button class="btnGhost" id="btnWordsNext">Next ➡</button>
+      </div>
+    </section>
+
+    <!-- SENTENCES -->
+    <section class="page" id="page-sentences">
+      <div class="pageHead">
+        <h2>Sentences</h2>
+        <p class="muted">English sentence + Tamil meaning + Tamil sound</p>
+      </div>
+
+      <div class="searchRow">
+        <input id="sentSearch" class="searchInput" placeholder="Search sentence..." />
+      </div>
+
+      <div class="list" id="sentList"></div>
+      <div class="pagerRow">
+        <button class="btnGhost" id="btnSentPrev">⬅ Prev</button>
+        <div class="pagerText" id="sentPagerText">Page 1</div>
+        <button class="btnGhost" id="btnSentNext">Next ➡</button>
+      </div>
+    </section>
+
+    <!-- RULES -->
+    <section class="page" id="page-rules">
+      <div class="pageHead">
+        <h2>Sound Rules</h2>
+        <p class="muted">எப்படி சரியாக படிக்கணும் (silent letters, endings, vowel teams)</p>
+      </div>
+
+      <div class="list" id="rulesList"></div>
+    </section>
+
+    <!-- PRACTICE -->
+    <section class="page" id="page-practice">
+      <div class="pageHead">
+        <h2>Speaking Practice</h2>
+        <p class="muted">கேள் → சொல்லு → check</p>
+      </div>
+
+      <div class="practiceCard" id="practiceCard">
+        <div class="practiceLabel">Practice line</div>
+        <div class="practiceEn" id="practiceEn">Hello!</div>
+        <div class="practiceTa" id="practiceTa">வணக்கம்!</div>
+        <div class="practiceSound" id="practiceSound">ஹலோ!</div>
+
+        <div class="practiceBtns">
+          <button class="btnPrimary" id="btnSpeakEnglish">🔊 Listen (English)</button>
+          <button class="btnGhost" id="btnNextPractice">Next</button>
+        </div>
+
+        <div class="micRow">
+          <button class="btnPrimary" id="btnMic">🎤 Speak</button>
+          <div class="micText" id="micText">Mic result will show here...</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- QUIZ -->
+    <section class="page" id="page-quiz">
+      <div class="pageHead">
+        <h2>Quiz</h2>
+        <p class="muted">Lesson முடிவில் 5 questions</p>
+      </div>
+
+      <div class="quizBox" id="quizBox"></div>
+
+      <div class="quizBottom">
+        <button class="btnPrimary" id="btnQuizNext">Next Question</button>
+        <button class="btnGhost" id="btnQuizRestart">Restart</button>
+      </div>
+
+      <div class="quizScore" id="quizScore"></div>
+    </section>
+
+    <!-- PROGRESS -->
+    <section class="page" id="page-progress">
+      <div class="pageHead">
+        <h2>Progress</h2>
+        <p class="muted">நீங்க எவ்வளவு முடிச்சீங்க</p>
+      </div>
+
+      <div class="progressCard">
+        <div class="progressRow">
+          <div class="progressTitle">Completed Words</div>
+          <div class="progressValue" id="progWords">0</div>
+        </div>
+        <div class="progressRow">
+          <div class="progressTitle">Completed Sentences</div>
+          <div class="progressValue" id="progSent">0</div>
+        </div>
+
+        <button class="btnDanger" id="btnReset">Reset Progress</button>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="page" id="page-settings">
+      <div class="pageHead">
+        <h2>Settings</h2>
+        <p class="muted">Tamil meaning / sound ON-OFF</p>
+      </div>
+
+      <div class="settingsCard">
+        <label class="toggleRow">
+          <span>Show Tamil Meaning</span>
+          <input type="checkbox" id="setMeaning" checked />
+        </label>
+
+        <label class="toggleRow">
+          <span>Show Tamil Sound</span>
+          <input type="checkbox" id="setSound" checked />
+        </label>
+
+        <label class="toggleRow">
+          <span>Big Font</span>
+          <input type="checkbox" id="setBigFont" />
+        </label>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Bottom Navigation -->
+  <nav class="bottomNav">
+    <button class="navBtn active" data-nav="home">🏠<span>Home</span></button>
+    <button class="navBtn" data-nav="letters">அ<span>Letters</span></button>
+    <button class="navBtn" data-nav="words">📘<span>Words</span></button>
+    <button class="navBtn" data-nav="sentences">💬<span>Sent</span></button>
+    <button class="navBtn" data-nav="practice">🎤<span>Speak</span></button>
+    <button class="navBtn" data-nav="progress">📈<span>Progress</span></button>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>
